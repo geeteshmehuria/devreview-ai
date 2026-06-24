@@ -1,0 +1,82 @@
+"""
+Application configuration using Pydantic Settings.
+All config values come from environment variables with sensible defaults.
+"""
+
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import AnyHttpUrl, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # ── Application ────────────────────────────────────────────────────────────
+    APP_NAME: str = "DevReview AI"
+    APP_ENV: Literal["development", "staging", "production"] = "development"
+    DEBUG: bool = True
+    SECRET_KEY: str = "change-me-in-production-at-least-32-characters"
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: str | list[str]) -> list[str]:
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",")]
+        return v
+
+    # ── Database ───────────────────────────────────────────────────────────────
+    DATABASE_URL: str = (
+        "postgresql+asyncpg://devreview:devreview_secret@localhost:5432/devreview_ai"
+    )
+
+    # ── Redis ──────────────────────────────────────────────────────────────────
+    REDIS_URL: str = "redis://:redis_secret@localhost:6379/0"
+    REDIS_PASSWORD: str = "redis_secret"
+
+    # Cache TTL (seconds)
+    CACHE_TTL_REPO_ANALYSIS: int = 3600
+    CACHE_TTL_PR_REVIEW: int = 1800
+    CACHE_TTL_CODE_REVIEW: int = 900
+
+    # ── GitHub OAuth ───────────────────────────────────────────────────────────
+    GITHUB_CLIENT_ID: str = ""
+    GITHUB_CLIENT_SECRET: str = ""
+    GITHUB_CALLBACK_URL: str = "http://localhost:3000/auth/callback"
+
+    # ── AI Providers ───────────────────────────────────────────────────────────
+    GEMINI_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
+    AI_PRIMARY_PROVIDER: Literal["gemini", "openai", "claude"] = "gemini"
+
+    # ── JWT ────────────────────────────────────────────────────────────────────
+    JWT_SECRET_KEY: str = "change-me-in-production-jwt-secret"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+
+    # ── Celery ─────────────────────────────────────────────────────────────────
+    CELERY_BROKER_URL: str = "redis://:redis_secret@localhost:6379/1"
+    CELERY_RESULT_BACKEND: str = "redis://:redis_secret@localhost:6379/2"
+
+    @property
+    def is_production(self) -> bool:
+        return self.APP_ENV == "production"
+
+    @property
+    def is_development(self) -> bool:
+        return self.APP_ENV == "development"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return cached settings — call once per process."""
+    return Settings()

@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Premium Forest Green palette ── */
+  --color-brand-50: #d8f3dc;
+  --color-brand-100: #b7e4c7;
+  --color-brand-200: #95d5b2;
+  --color-brand-300: #74c69d;
+  --color-brand-400: #52b788;
+  --color-brand-500: #40916c;
+  --color-brand-600: #2d6a4f;
+  --color-brand-700: #1b4332;
+  --color-brand-800: #081c15;
+
+  /* ── Surface colors (dark-first) ── */
+  --color-surface-0: #0a0f0d;
+  --color-surface-1: #0f1612;
+  --color-surface-2: #141e19;
+  --color-surface-3: #1a261f;
+  --color-surface-4: #1f2e25;
+  --color-surface-border: #2a3d32;
+
+  /* ── Semantic ── */
+  --color-accent: #52b788;
+  --color-accent-hover: #40916c;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #22c55e;
+  --color-info: #3b82f6;
+
+  /* ── Typography ── */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+}
+
+/* Dark mode root */
+:root {
+  color-scheme: dark;
+}
+
+* {
+  border-color: var(--color-surface-border);
+}
+
+body {
+  background-color: var(--color-surface-0);
+  color: #e2e8e4;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Glassmorphism utilities ── */
+.glass {
+  background: rgba(20, 30, 25, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(82, 183, 136, 0.12);
+}
+
+.glass-card {
+  background: rgba(15, 22, 18, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(82, 183, 136, 0.1);
+  box-shadow:
+    0 0 0 1px rgba(82, 183, 136, 0.05),
+    0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.glass-hover {
+  transition: all 0.2s ease;
+}
+.glass-hover:hover {
+  border-color: rgba(82, 183, 136, 0.25);
+  box-shadow:
+    0 0 0 1px rgba(82, 183, 136, 0.1),
+    0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Gradient text ── */
+.gradient-text {
+  background: linear-gradient(135deg, #52b788 0%, #40916c 50%, #74c69d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Score ring animation ── */
+@keyframes score-ring {
+  from { stroke-dashoffset: 283; }
+  to { stroke-dashoffset: var(--target-offset); }
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-surface-1); }
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-4);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-brand-600); }
+
+/* ── Code blocks ── */
+pre, code {
+  font-family: var(--font-mono);
+}
+
+/* ── Selection ── */
+::selection {
+  background: rgba(82, 183, 136, 0.25);
+  color: #d8f3dc;
+}
+
+/* ── Focus ring ── */
+:focus-visible {
+  outline: 2px solid rgba(82, 183, 136, 0.6);
+  outline-offset: 2px;
+}
