@@ -4,10 +4,10 @@ All config values come from environment variables with sensible defaults.
 """
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import AnyHttpUrl, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     APP_ENV: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = True
     SECRET_KEY: str = "change-me-in-production-at-least-32-characters"
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
+    # NoDecode stops pydantic-settings from JSON-decoding the env value, so the
+    # validator below can accept a plain comma-separated string (as in .env.example).
+    ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
