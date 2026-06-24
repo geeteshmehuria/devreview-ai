@@ -22,4 +22,4 @@ vi.mock("next/image", () => ({
 }));
 
 // Silence React act() warnings in tests
-global.IS_REACT_ACT_ENVIRONMENT = true;
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

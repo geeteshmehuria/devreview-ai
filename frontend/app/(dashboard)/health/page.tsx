@@ -3,10 +3,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
+  ResponsiveContainer,
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
-import { Activity, TrendingUp, Shield, Zap, Wrench, BookOpen, GitBranch } from "lucide-react";
+import { Activity, Shield, Zap, Wrench } from "lucide-react";
 import { repositoriesApi } from "@/lib/api/repositories";
 import { ScoreRing } from "@/components/shared/score-ring";
 import { getScoreColor } from "@/lib/utils";

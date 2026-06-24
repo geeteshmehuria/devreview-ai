@@ -3,10 +3,10 @@
 import uuid
 
 from sqlalchemy import ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.database import Base
+from app.core.database import Base, JSONType
 from app.models.base import TimestampMixin, UUIDMixin
 
 
@@ -26,6 +26,8 @@ class AuditLog(Base, UUIDMixin, TimestampMixin):
     resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(50), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
-    metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # NB: attribute name 'metadata' is reserved by SQLAlchemy Declarative,
+    # so the Python attribute is 'event_metadata' while the DB column stays 'metadata'.
+    event_metadata: Mapped[dict | None] = mapped_column("metadata", JSONType, nullable=True)
     success: Mapped[bool] = mapped_column(default=True, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

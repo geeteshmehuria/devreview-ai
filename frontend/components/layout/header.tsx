@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, Search } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 const PAGE_TITLES: Record<string, string> = {

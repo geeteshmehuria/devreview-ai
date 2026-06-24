@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Code2, GitBranch, Shield, TrendingUp, Clock, AlertTriangle, ArrowRight, Zap } from "lucide-react";
+import { Code2, GitBranch, Shield, TrendingUp, AlertTriangle, ArrowRight, Zap } from "lucide-react";
 import Link from "next/link";
 import { reviewsApi } from "@/lib/api/reviews";
 import { repositoriesApi } from "@/lib/api/repositories";
@@ -51,7 +51,7 @@ export default function DashboardPage() {
         <h2 className="text-2xl font-bold text-white">
           Good day, {user?.github_name?.split(" ")[0] || user?.github_login} 👋
         </h2>
-        <p className="text-slate-400 mt-1">Here's what's happening with your code.</p>
+        <p className="text-slate-400 mt-1">Here&apos;s what&apos;s happening with your code.</p>
       </motion.div>
 
       {/* Stats */}

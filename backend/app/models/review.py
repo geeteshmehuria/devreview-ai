@@ -7,10 +7,10 @@ import uuid
 from enum import StrEnum
 
 from sqlalchemy import Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.database import Base, JSONType
 from app.models.base import TimestampMixin, UUIDMixin
 
 
@@ -116,8 +116,8 @@ class ReviewResult(Base, UUIDMixin, TimestampMixin):
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     score: Mapped[float] = mapped_column(Float, nullable=False)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    suggestions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    details: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    suggestions: Mapped[list | None] = mapped_column(JSONType, nullable=True)
 
     review: Mapped["Review"] = relationship("Review", back_populates="results")
 

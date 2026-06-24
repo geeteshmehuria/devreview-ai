@@ -15,6 +15,7 @@ hiredis==3.1.0
 # Auth
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==4.0.1  # passlib 1.7.4 is incompatible with bcrypt >=4.1 (no __about__, raises on >72 bytes)
 python-multipart==0.0.18
 httpx==0.28.1
 httpx-oauth==0.15.1
@@ -57,6 +58,7 @@ pytest-cov==6.0.0
 httpx==0.28.1
 factory-boy==3.3.1
 faker==33.1.0
+aiosqlite==0.20.0  # async SQLite driver for the in-memory test database
 
 # Code analysis
 radon==6.0.1

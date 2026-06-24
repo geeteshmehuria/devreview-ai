@@ -7,10 +7,10 @@ import uuid
 from enum import StrEnum
 
 from sqlalchemy import Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.database import Base, JSONType
 from app.models.base import TimestampMixin, UUIDMixin
 
 
@@ -53,7 +53,7 @@ class Repository(Base, UUIDMixin, TimestampMixin):
     analysis_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Cached analysis results (JSONB for flexible schema evolution)
-    analysis_summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    analysis_summary: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
 
     # Relationships
     owner: Mapped["User"] = relationship("User", back_populates="repositories")  # noqa: F821
@@ -94,7 +94,7 @@ class RepositoryHealth(Base, UUIDMixin, TimestampMixin):
     complexity_score: Mapped[float] = mapped_column(Float, nullable=False)
 
     # Detailed breakdown (flexible JSONB)
-    breakdown: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    breakdown: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
 
     # Relationship
     repository: Mapped["Repository"] = relationship("Repository", back_populates="health_snapshots")

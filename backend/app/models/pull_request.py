@@ -4,10 +4,10 @@ import uuid
 from enum import StrEnum
 
 from sqlalchemy import Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.database import Base, JSONType
 from app.models.base import TimestampMixin, UUIDMixin
 
 
@@ -47,7 +47,7 @@ class PullRequest(Base, UUIDMixin, TimestampMixin):
 
     # Cached diff content
     diff_content: Mapped[str | None] = mapped_column(Text, nullable=True)
-    files_changed: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    files_changed: Mapped[list | None] = mapped_column(JSONType, nullable=True)
 
     # Relationships
     repository: Mapped["Repository"] = relationship("Repository", back_populates="pull_requests")  # noqa: F821

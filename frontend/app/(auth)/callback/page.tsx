@@ -50,7 +50,7 @@ function CallbackInner() {
 
         toast.success(`Welcome, ${user.github_name || user.github_login}!`);
         router.replace("/dashboard");
-      } catch (err) {
+      } catch {
         toast.error("Authentication failed. Please try again.");
         router.replace("/login");
       }

@@ -5,6 +5,8 @@ Uses asyncpg driver for non-blocking DB I/O.
 
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -13,6 +15,10 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import get_settings
+
+# Cross-dialect JSON: renders JSONB on PostgreSQL, falls back to generic JSON
+# elsewhere (e.g. the in-memory SQLite database used in tests).
+JSONType = JSON().with_variant(JSONB(), "postgresql")
 
 settings = get_settings()
 

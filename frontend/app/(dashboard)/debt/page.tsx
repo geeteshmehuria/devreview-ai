@@ -1,25 +1,19 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
 import { AlertTriangle, Clock, TrendingDown, CheckCircle2, Filter } from "lucide-react";
 import { useState } from "react";
 import { reviewsApi } from "@/lib/api/reviews";
-import { getSeverityColor, formatRelativeTime } from "@/lib/utils";
-import type { Finding } from "@/types";
-
-const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 
 export default function DebtPage() {
   const [severityFilter, setSeverityFilter] = useState("all");
 
-  const { data: reviewsData, isLoading } = useQuery({
+  const { isLoading } = useQuery({
     queryKey: ["reviews", { page: 1, page_size: 50 }],
     queryFn: () => reviewsApi.list({ page: 1, page_size: 50 }),
   });
 
   // For a real impl, we'd aggregate from all reviews. Here we show from recent.
-  const totalItems = reviewsData?.total || 0;
 
   return (
     <div className="max-w-5xl space-y-6">

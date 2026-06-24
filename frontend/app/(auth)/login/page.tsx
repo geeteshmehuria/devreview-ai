@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Github, Code2, Shield, Zap } from "lucide-react";
 import { authApi } from "@/lib/api/auth";

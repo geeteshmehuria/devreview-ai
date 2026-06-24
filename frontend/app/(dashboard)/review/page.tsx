@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Code2, Upload, Play, Loader2, AlertCircle, ChevronDown } from "lucide-react";
+import { Code2, Upload, Play, Loader2, ChevronDown } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -201,7 +201,7 @@ export default function ReviewPage() {
   );
 }
 
-function Select({ value, onChange, options, label }: {
+function Select({ value, onChange, options }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
