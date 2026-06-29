@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const PROTECTED_PREFIXES = ["/dashboard", "/repositories", "/review", "/history", "/health", "/debt", "/settings", "/pull-requests"];
-const PUBLIC_PATHS = ["/", "/login", "/auth/callback"];
+const PUBLIC_PATHS = ["/", "/login", "/callback"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

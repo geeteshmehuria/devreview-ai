@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # ── GitHub OAuth ───────────────────────────────────────────────────────────
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_SECRET: str = ""
-    GITHUB_CALLBACK_URL: str = "http://localhost:3000/auth/callback"
+    GITHUB_CALLBACK_URL: str = "http://localhost:3000/callback"
 
     # ── AI Providers ───────────────────────────────────────────────────────────
     GEMINI_API_KEY: str = ""
