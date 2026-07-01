@@ -39,6 +39,24 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://devreview:devreview_secret@localhost:5432/devreview_ai"
     )
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def normalize_db_url(cls, v: str | None) -> str | None:
+        """Make managed-provider URLs work with the async engine.
+
+        Render/Heroku/etc. hand out a sync-driver URL (``postgres://`` or
+        ``postgresql://``). The app uses SQLAlchemy's async engine, which
+        requires the ``asyncpg`` driver, so rewrite the scheme. Also translate
+        libpq's ``sslmode`` query param, which asyncpg does not understand.
+        """
+        if not isinstance(v, str):
+            return v
+        if v.startswith("postgres://"):
+            v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif v.startswith("postgresql://"):
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v.replace("sslmode=", "ssl=")
+
     # ── Redis ──────────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://:redis_secret@localhost:6379/0"
     REDIS_PASSWORD: str = "redis_secret"
@@ -80,5 +98,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return cached settings — call once per process."""
+    """Return cached settings — call once per process (result is cached)."""
     return Settings()

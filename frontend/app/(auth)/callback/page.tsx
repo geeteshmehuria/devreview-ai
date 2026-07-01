@@ -45,8 +45,10 @@ function CallbackInner() {
         setTokens(tokens.access_token, tokens.refresh_token);
         setUser(user);
 
-        // Set cookie for middleware (session cookie, not httpOnly since we're client-side)
-        document.cookie = `access_token=${tokens.access_token}; path=/; max-age=${tokens.expires_in}; SameSite=Lax`;
+        // Set cookie for middleware (session cookie, not httpOnly since we're client-side).
+        // Mark Secure on https so the token cookie is never sent over plain http in production.
+        const secure = typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : "";
+        document.cookie = `access_token=${tokens.access_token}; path=/; max-age=${tokens.expires_in}; SameSite=Lax${secure}`;
 
         toast.success(`Welcome, ${user.github_name || user.github_login}!`);
         router.replace("/dashboard");

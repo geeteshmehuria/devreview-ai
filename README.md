@@ -287,6 +287,20 @@ docker compose exec backend alembic upgrade head
 
 ---
 
+## Deployment
+
+Production deploys to **Render** (backend + Postgres + Redis) and **Vercel**
+(frontend). The repo ships a Render Blueprint (`render.yaml`) and Vercel config
+(`frontend/vercel.json`). See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the full
+step-by-step guide, environment variable reference, and troubleshooting.
+
+Production URLs (fill in after first deploy):
+
+- **Frontend**: `https://<your-project>.vercel.app`
+- **Backend**: `https://<your-api>.onrender.com`
+
+---
+
 ## Running Tests
 
 ### Frontend (Vitest)
