@@ -49,8 +49,10 @@ instance, all wired together.
    | `ALLOWED_ORIGINS` | `https://<your-frontend>.vercel.app` |
 
    You'll fill the two Vercel URLs after step 2; redeploy the service once they're set.
-5. Migrations run automatically on every deploy via the blueprint's
-   `preDeployCommand: alembic upgrade head`.
+5. Migrations run automatically at startup (the blueprint's `startCommand` is
+   `alembic upgrade head && uvicorn ...`). Free tier does not support a separate
+   pre-deploy step; `alembic upgrade head` is idempotent so running it on each
+   boot is safe.
 6. Verify: open `https://<your-api>.onrender.com/health` → `{"status":"ok","env":"production"}`.
 
 Notes:
@@ -142,8 +144,9 @@ Both Render and Vercel redeploy automatically on push to `main` once connected.
   frontend origin exactly (scheme + host, no trailing slash). Redeploy after changes.
 - **Login redirects to `/login` in a loop**: the callback cookie isn't set. Check
   `GITHUB_CALLBACK_URL` (backend) == OAuth app callback == `<frontend>/callback`.
-- **500 on boot / DB errors**: confirm `alembic upgrade head` ran (Render deploy
-  logs, "Pre-Deploy" step). A `postgresql://` URL is normalized automatically.
+- **500 on boot / DB errors**: confirm `alembic upgrade head` ran (it's the first
+  half of the start command; check the service logs at boot). A `postgresql://`
+  URL is normalized automatically.
 - **`asyncio extension requires an async driver`**: means the URL wasn't
   normalized — you're on an old `config.py`; pull latest.
 - **First request very slow**: free Render service cold start. Upgrade the plan.
