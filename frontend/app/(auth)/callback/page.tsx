@@ -37,6 +37,18 @@ function CallbackInner() {
       return;
     }
 
+    // CSRF check: the state GitHub echoes back must match the one we
+    // stored before redirecting. Only enforced when a state was stored
+    // (backwards compatible with older backend responses).
+    const expectedState = sessionStorage.getItem("oauth_state");
+    const returnedState = searchParams.get("state");
+    sessionStorage.removeItem("oauth_state");
+    if (expectedState && returnedState !== expectedState) {
+      toast.error("Login session mismatch. Please try signing in again.");
+      router.replace("/login");
+      return;
+    }
+
     (async () => {
       try {
         const { tokens, user } = await authApi.githubCallback(code);

@@ -39,6 +39,8 @@ async def exchange_github_code(code: str) -> dict:
                 "client_id": settings.GITHUB_CLIENT_ID,
                 "client_secret": settings.GITHUB_CLIENT_SECRET,
                 "code": code,
+                # Must match the redirect_uri sent in the authorize request.
+                "redirect_uri": settings.GITHUB_CALLBACK_URL,
             },
             headers={"Accept": "application/json"},
         )

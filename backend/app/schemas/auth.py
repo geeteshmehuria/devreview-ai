@@ -1,6 +1,8 @@
 """Auth-related Pydantic schemas."""
 
-from pydantic import BaseModel, HttpUrl
+from uuid import UUID
+
+from pydantic import BaseModel, field_validator
 
 
 class GitHubOAuthRequest(BaseModel):
@@ -28,3 +30,9 @@ class UserPublic(BaseModel):
     role: str
 
     model_config = {"from_attributes": True}
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def coerce_uuid_to_str(cls, v: str | UUID) -> str:
+        """ORM hands us a UUID primary key; the API contract is a string."""
+        return str(v) if isinstance(v, UUID) else v

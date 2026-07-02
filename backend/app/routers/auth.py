@@ -1,10 +1,14 @@
 """Auth router — GitHub OAuth endpoints."""
 
+import secrets
+from urllib.parse import urlencode
+
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.exceptions import AppException
 from app.middleware.auth import get_current_user
 from app.models.user import User
 from app.schemas.auth import GitHubOAuthRequest, RefreshRequest, TokenPair, UserPublic
@@ -16,14 +20,25 @@ settings = get_settings()
 
 @router.get("/github/url")
 async def github_oauth_url():
-    """Return the GitHub OAuth authorization URL for the frontend to redirect to."""
-    url = (
-        f"https://github.com/login/oauth/authorize"
-        f"?client_id={settings.GITHUB_CLIENT_ID}"
-        f"&scope=repo,read:user,user:email"
-        f"&redirect_uri={settings.GITHUB_CALLBACK_URL}"
+    """Return the GitHub OAuth authorization URL for the frontend to redirect to.
+
+    Also returns a random ``state`` value. The frontend stores it before
+    redirecting and verifies GitHub echoes the same value back on the
+    callback (CSRF protection for the login flow).
+    """
+    if not settings.GITHUB_CLIENT_ID:
+        raise AppException("GitHub OAuth is not configured (missing GITHUB_CLIENT_ID)")
+
+    state = secrets.token_urlsafe(32)
+    params = urlencode(
+        {
+            "client_id": settings.GITHUB_CLIENT_ID,
+            "scope": "repo,read:user,user:email",
+            "redirect_uri": settings.GITHUB_CALLBACK_URL,
+            "state": state,
+        }
     )
-    return {"url": url}
+    return {"url": f"https://github.com/login/oauth/authorize?{params}", "state": state}
 
 
 @router.post("/github/callback", response_model=dict)

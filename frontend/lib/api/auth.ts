@@ -2,7 +2,7 @@ import apiClient from "./client";
 import type { TokenPair, User } from "@/types";
 
 export const authApi = {
-  getGithubUrl: async (): Promise<{ url: string }> => {
+  getGithubUrl: async (): Promise<{ url: string; state?: string }> => {
     const { data } = await apiClient.get("/auth/github/url");
     return data;
   },

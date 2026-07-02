@@ -12,7 +12,10 @@ export default function LoginPage() {
   const handleGitHubLogin = async () => {
     setIsLoading(true);
     try {
-      const { url } = await authApi.getGithubUrl();
+      const { url, state } = await authApi.getGithubUrl();
+      // Persist the OAuth state so the callback page can verify GitHub
+      // echoed the same value back (CSRF protection).
+      if (state) sessionStorage.setItem("oauth_state", state);
       window.location.href = url;
     } catch {
       toast.error("Failed to initiate GitHub login. Please try again.");
