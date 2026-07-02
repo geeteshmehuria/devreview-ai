@@ -1,19 +1,39 @@
+<div align="center">
+
 # DevReview AI
 
-> AI-powered code review platform. Analyse repositories, review pull requests, detect security vulnerabilities, and track technical debt — powered by Google Gemini.
+**AI-powered code reviews in seconds.**
+
+Analyse repositories, review pull requests, detect security vulnerabilities, and track technical debt — powered by Google Gemini with OpenAI and Claude fallbacks.
+
+[**Live Demo**](https://devreview-ai-mu.vercel.app) · [Features](#features) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Setup](#setup) · [Deployment](#deployment)
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs)](https://nextjs.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)](https://fastapi.tiangolo.com)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql)](https://postgresql.org)
-[![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis)](https://redis.io)
-[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python)](https://python.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript)](https://typescriptlang.org)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://python.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://postgresql.org)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)](https://redis.io)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
+
+<br/>
+
+<img src="docs/screenshots/dashboard.png" alt="DevReview AI dashboard" width="900"/>
+
+</div>
 
 ---
 
 ## Overview
 
-DevReview AI is a production-grade SaaS-style portfolio project demonstrating full-stack engineering across:
+**DevReview AI** turns code review into a 30-second operation. Sign in with GitHub, then paste a snippet, upload a file, import a repository, or drop in a pull-request URL — and get a structured AI review: per-category scores, severity-ranked security findings with CWE tags, performance issues, code smells, and technical-debt estimates, each with a concrete fix.
+
+**The problem it solves:** manual review is slow, inconsistent, and easy to skip under deadline pressure. DevReview AI gives every developer an instant, repeatable second pair of eyes — before code reaches a human reviewer.
+
+Under the hood it is a production-grade full-stack application demonstrating:
 
 - **Frontend Engineering** — Next.js 15 App Router, React 19, TypeScript, Tailwind CSS v4
 - **Backend Engineering** — FastAPI with clean architecture (routers → services → repositories)
@@ -238,8 +258,8 @@ devreview-ai/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/geeteshmehuria/devreview_ai.git
-cd devreview_ai
+git clone https://github.com/geeteshmehuria/devreview-ai.git
+cd devreview-ai
 ```
 
 ### 2. Create a GitHub OAuth App
@@ -294,10 +314,10 @@ Production deploys to **Render** (backend + Postgres + Redis) and **Vercel**
 (`frontend/vercel.json`). See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for the full
 step-by-step guide, environment variable reference, and troubleshooting.
 
-Production URLs (fill in after first deploy):
+Production URLs:
 
-- **Frontend**: `https://<your-project>.vercel.app`
-- **Backend**: `https://<your-api>.onrender.com`
+- **Frontend**: [https://devreview-ai-mu.vercel.app](https://devreview-ai-mu.vercel.app)
+- **Backend API**: `https://devreview-api.onrender.com` (Render free tier — the instance sleeps when idle, so the first request can take ~50s)
 
 ---
 
@@ -375,13 +395,58 @@ Cloning and analysing a repository takes 30–120 seconds. FastAPI's `Background
 
 ## Screenshots
 
-> _Screenshots to be added after first deployment._
+> UI captures from the current build (populated with sample data).
+
+| Landing | Login |
+|---|---|
+| ![Landing page](docs/screenshots/landing.png) | ![Login](docs/screenshots/login.png) |
+
+| Dashboard | Repositories |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Repositories](docs/screenshots/repositories.png) |
+
+| AI Code Review — Overview | Security Findings |
+|---|---|
+| ![Code review overview](docs/screenshots/review.png) | ![Security findings](docs/screenshots/security.png) |
+
+| Pull Request Review | Repository Health |
+|---|---|
+| ![PR review](docs/screenshots/pr.png) | ![Repo health](docs/screenshots/health.png) |
+
+| Review History |
+|---|
+| ![Review history](docs/screenshots/history.png) |
+
+---
+
+## Roadmap
+
+- [ ] Inline PR comments posted back to GitHub via the Checks API
+- [ ] Team workspaces with shared review history
+- [ ] Custom review rulesets (per-language severity thresholds)
+- [ ] Webhook-triggered automatic PR reviews
+- [ ] SARIF export for CI integration
+- [ ] Aggregated technical-debt dashboard across repositories
+
+---
+
+## Contributing
+
+Contributions are welcome. Fork the repo, create a feature branch, and open a pull request:
+
+```bash
+git checkout -b feat/your-feature
+# make your changes, add tests
+git commit -m "feat: describe your change"
+```
+
+Please run the test suites (`npm test`, `pytest`) before submitting, and keep PRs focused on a single change.
 
 ---
 
 ## Author
 
-**Geetesh Maihuria** — [GitHub](https://github.com/geeteshmehuria) · [Email](mailto:geeteshmaihuria@gmail.com)
+**Geetesh Mehuria** — [GitHub](https://github.com/geeteshmehuria) · [Email](mailto:geeteshmaihuria@gmail.com)
 
 ---
 
