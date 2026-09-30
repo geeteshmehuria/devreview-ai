@@ -3,10 +3,8 @@
 /**
  * GitHub OAuth callback page.
  * Exchanges the `code` param from GitHub for our JWT tokens,
- * stores them, and redirects to the dashboard.
- *
- * Also sets a cookie (via document.cookie) so middleware can protect
- * routes without reading localStorage (which isn't available at edge).
+ * stores them (lib/session also sets the middleware's marker cookie),
+ * and redirects to the page the user originally asked for.
  */
 
 import { useEffect, useRef } from "react";
@@ -37,13 +35,16 @@ function CallbackInner() {
       return;
     }
 
-    // CSRF check: the state GitHub echoes back must match the one we
-    // stored before redirecting. Only enforced when a state was stored
-    // (backwards compatible with older backend responses).
+    // CSRF check: the state GitHub echoes back must match the one this browser
+    // stored before redirecting. A missing stored state means this login was not
+    // started here (login CSRF), so it is rejected. The backend also verifies
+    // the state's signature.
     const expectedState = sessionStorage.getItem("oauth_state");
     const returnedState = searchParams.get("state");
+    const redirectTo = sessionStorage.getItem("post_login_redirect") || "/dashboard";
     sessionStorage.removeItem("oauth_state");
-    if (expectedState && returnedState !== expectedState) {
+    sessionStorage.removeItem("post_login_redirect");
+    if (!expectedState || returnedState !== expectedState) {
       toast.error("Login session mismatch. Please try signing in again.");
       router.replace("/login");
       return;
@@ -51,19 +52,12 @@ function CallbackInner() {
 
     (async () => {
       try {
-        const { tokens, user } = await authApi.githubCallback(code);
-
-        // Store tokens
+        const { tokens, user } = await authApi.githubCallback(code, expectedState);
         setTokens(tokens.access_token, tokens.refresh_token);
         setUser(user);
 
-        // Set cookie for middleware (session cookie, not httpOnly since we're client-side).
-        // Mark Secure on https so the token cookie is never sent over plain http in production.
-        const secure = typeof window !== "undefined" && window.location.protocol === "https:" ? "; Secure" : "";
-        document.cookie = `access_token=${tokens.access_token}; path=/; max-age=${tokens.expires_in}; SameSite=Lax${secure}`;
-
         toast.success(`Welcome, ${user.github_name || user.github_login}!`);
-        router.replace("/dashboard");
+        router.replace(redirectTo);
       } catch {
         toast.error("Authentication failed. Please try again.");
         router.replace("/login");

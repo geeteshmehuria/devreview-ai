@@ -43,7 +43,7 @@ test.describe("Login page", () => {
 
   test("shows trust signals", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.getByText(/never store your code/i)).toBeVisible();
+    await expect(page.getByText(/private history/i)).toBeVisible();
   });
 });
 

@@ -8,7 +8,7 @@ import { X, Shield, Zap, Eye, Wrench, Layout, CheckCircle2, AlertTriangle, BarCh
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } from "recharts";
 import type { Review, Finding } from "@/types";
 import { ScoreRing } from "@/components/shared/score-ring";
-import { cn, getSeverityColor, categoryLabel } from "@/lib/utils";
+import { bySeverity, cn, getSeverityColor, categoryLabel } from "@/lib/utils";
 
 interface ReviewResultPanelProps {
   review: Review;
@@ -64,6 +64,7 @@ export function ReviewResultPanel({ review, onClear }: ReviewResultPanelProps) {
         {onClear && (
           <button
             onClick={onClear}
+            aria-label="Close review"
             className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-surface-3 transition-colors"
           >
             <X className="w-4 h-4" />
@@ -186,10 +187,7 @@ function FindingsList({ findings, emptyLabel }: { findings: Finding[]; emptyLabe
     );
   }
 
-  const sorted = [...findings].sort((a, b) => {
-    const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
-    return (order[a.severity as keyof typeof order] ?? 5) - (order[b.severity as keyof typeof order] ?? 5);
-  });
+  const sorted = [...findings].sort(bySeverity);
 
   return (
     <div className="space-y-3">

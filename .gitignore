@@ -32,8 +32,6 @@ ENV/
 env.bak/
 venv.bak/
 *.egg-info/
-dist/
-build/
 .eggs/
 
 # IDEs
@@ -64,13 +62,7 @@ playwright-report/
 *.pid
 
 # Temp files
-/tmp/repos/
 *.tmp
 
-# OS
-.DS_Store
-*.DS_Store
-
-# Alembic
-# Keep versions directory but ignore __pycache__
-backend/alembic/versions/__pycache__/
+# CodeGraph index (local, per-machine)
+.codegraph/

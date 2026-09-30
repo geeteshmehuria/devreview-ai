@@ -21,11 +21,13 @@ async def test_root_endpoint(client):
 
 
 @pytest.mark.asyncio
-async def test_docs_available_in_debug(client):
-    """Swagger docs should be accessible when DEBUG=True."""
-    response = await client.get("/api/docs")
-    # May redirect or return HTML — just check it doesn't 404
-    assert response.status_code in (200, 307)
+async def test_docs_only_exposed_in_debug(client):
+    """Swagger docs and the OpenAPI schema are served only when DEBUG=True."""
+    from app.core.config import get_settings
+
+    expected = (200, 307) if get_settings().DEBUG else (404,)
+    assert (await client.get("/api/docs")).status_code in expected
+    assert (await client.get("/api/openapi.json")).status_code in ((200,) if get_settings().DEBUG else (404,))
 
 
 @pytest.mark.asyncio

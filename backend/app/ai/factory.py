@@ -1,18 +1,20 @@
 """
 AI provider factory with automatic fallback chain.
-Gemini → OpenAI → Claude.
-If the primary is unavailable (missing key or API error), we cascade to the next.
+Gemini → OpenAI → Claude (preferred provider first).
+A provider is skipped when its key is missing, and the next one is tried when
+its API call fails or returns unusable output.
 """
 
 import structlog
 
-from app.ai.base import AIProvider
+from app.ai.base import AIProvider, ReviewRequest, ReviewResponse
 from app.core.config import get_settings
 from app.core.exceptions import AIProviderError
 
 logger = structlog.get_logger()
 settings = get_settings()
 
+FALLBACK_CHAIN = ("gemini", "openai", "claude")
 _provider_cache: dict[str, AIProvider] = {}
 
 
@@ -29,36 +31,38 @@ def _make_provider(name: str) -> AIProvider | None:
             from app.ai.providers.claude_provider import ClaudeProvider
             return ClaudeProvider()
     except AIProviderError as e:
-        logger.warning("ai_provider_init_failed", provider=name, error=str(e))
+        logger.info("ai_provider_not_configured", provider=name, error=str(e))
     return None
 
 
-def get_ai_provider(preferred: str | None = None) -> AIProvider:
-    """
-    Return an AI provider, falling back through the chain if the preferred
-    provider is not configured.
-
-    Fallback order: gemini → openai → claude
-    """
-    primary = preferred or settings.AI_PRIMARY_PROVIDER
-    fallback_chain = ["gemini", "openai", "claude"]
-
-    # Put preferred first, then remaining in default order
-    ordered = [primary] + [p for p in fallback_chain if p != primary]
-
-    for name in ordered:
-        # Reuse cached instances (they hold connection pools)
-        if name in _provider_cache:
-            return _provider_cache[name]
-
+def _get_provider(name: str) -> AIProvider | None:
+    if name not in _provider_cache:
         provider = _make_provider(name)
-        if provider:
-            _provider_cache[name] = provider
-            if name != primary:
-                logger.info("ai_provider_fallback", requested=primary, using=name)
-            return provider
+        if provider is None:
+            return None
+        _provider_cache[name] = provider  # reuse instances (they hold connection pools)
+    return _provider_cache[name]
 
-    raise AIProviderError(
-        "No AI provider is configured. Set at least one of: "
-        "GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY"
-    )
+
+async def run_review(request: ReviewRequest, preferred: str | None = None) -> ReviewResponse:
+    """Run the review on the preferred provider, falling back through the chain on any failure."""
+    primary = preferred if preferred in FALLBACK_CHAIN else settings.AI_PRIMARY_PROVIDER
+    ordered = [primary] + [p for p in FALLBACK_CHAIN if p != primary]
+
+    configured = False
+    for name in ordered:
+        provider = _get_provider(name)
+        if provider is None:
+            continue
+        configured = True
+        try:
+            return await provider.review(request)
+        except Exception as e:
+            logger.warning("ai_provider_failed", provider=name, error=str(e))
+
+    if not configured:
+        raise AIProviderError(
+            "No AI provider is configured. Set at least one of: "
+            "GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY"
+        )
+    raise AIProviderError("All AI providers failed. Please try again later.")

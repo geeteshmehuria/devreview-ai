@@ -6,8 +6,10 @@ All config values come from environment variables with sensible defaults.
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+_DEFAULT_JWT_SECRET = "change-me-in-production-jwt-secret"
 
 
 class Settings(BaseSettings):
@@ -19,10 +21,8 @@ class Settings(BaseSettings):
     )
 
     # ── Application ────────────────────────────────────────────────────────────
-    APP_NAME: str = "DevReview AI"
     APP_ENV: Literal["development", "staging", "production"] = "development"
-    DEBUG: bool = True
-    SECRET_KEY: str = "change-me-in-production-at-least-32-characters"
+    DEBUG: bool = False
     # NoDecode stops pydantic-settings from JSON-decoding the env value, so the
     # validator below can accept a plain comma-separated string (as in .env.example).
     ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
@@ -59,7 +59,6 @@ class Settings(BaseSettings):
 
     # ── Redis ──────────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://:redis_secret@localhost:6379/0"
-    REDIS_PASSWORD: str = "redis_secret"
 
     # Cache TTL (seconds)
     CACHE_TTL_REPO_ANALYSIS: int = 3600
@@ -76,24 +75,28 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
     AI_PRIMARY_PROVIDER: Literal["gemini", "openai", "claude"] = "gemini"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    CLAUDE_MODEL: str = "claude-haiku-4-5"
 
     # ── JWT ────────────────────────────────────────────────────────────────────
-    JWT_SECRET_KEY: str = "change-me-in-production-jwt-secret"
+    JWT_SECRET_KEY: str = _DEFAULT_JWT_SECRET
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
-    # ── Celery ─────────────────────────────────────────────────────────────────
-    CELERY_BROKER_URL: str = "redis://:redis_secret@localhost:6379/1"
-    CELERY_RESULT_BACKEND: str = "redis://:redis_secret@localhost:6379/2"
+    @model_validator(mode="after")
+    def require_real_secret_in_production(self) -> "Settings":
+        """Refuse to boot production with a guessable JWT secret (tokens could be forged)."""
+        if self.is_production and (
+            self.JWT_SECRET_KEY == _DEFAULT_JWT_SECRET or len(self.JWT_SECRET_KEY) < 32
+        ):
+            raise ValueError("JWT_SECRET_KEY must be set to a random value of at least 32 characters in production")
+        return self
 
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production"
-
-    @property
-    def is_development(self) -> bool:
-        return self.APP_ENV == "development"
 
 
 @lru_cache

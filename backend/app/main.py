@@ -16,12 +16,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from app.core.config import get_settings
 from app.core.exceptions import AppException
+from app.core.rate_limit import limiter
 from app.routers import auth, repositories, reviews, pull_requests
 
 logger = structlog.get_logger()
@@ -36,15 +36,13 @@ async def lifespan(app: FastAPI):
     logger.info("shutdown")
 
 
-limiter = Limiter(key_func=get_remote_address)
-
 app = FastAPI(
     title="DevReview AI",
     description="AI-powered code review platform",
     version="1.0.0",
     docs_url="/api/docs" if settings.DEBUG else None,
     redoc_url="/api/redoc" if settings.DEBUG else None,
-    openapi_url="/api/openapi.json",
+    openapi_url="/api/openapi.json" if settings.DEBUG else None,
     lifespan=lifespan,
 )
 

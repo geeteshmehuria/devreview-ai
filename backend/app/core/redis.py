@@ -62,12 +62,3 @@ async def cache_set(
 ) -> None:
     """Serialize and store value with TTL."""
     await redis.setex(_key(namespace, *parts), ttl, json.dumps(value))
-
-
-async def cache_delete(redis: aioredis.Redis, namespace: str, *parts: str) -> None:
-    """Invalidate a cache entry."""
-    await redis.delete(_key(namespace, *parts))
-
-
-async def cache_exists(redis: aioredis.Redis, namespace: str, *parts: str) -> bool:
-    return bool(await redis.exists(_key(namespace, *parts)))

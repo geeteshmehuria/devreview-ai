@@ -1,17 +1,35 @@
 "use client";
 
-import { useAuthStore } from "@/lib/stores/auth-store";
 import Image from "next/image";
-import { Github, Shield, Bell, Cpu } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { Github, Loader2, Shield } from "lucide-react";
+import { toast } from "sonner";
+import { authApi } from "@/lib/api/auth";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 export default function SettingsPage() {
-  const { user } = useAuthStore();
+  const { user, clearTokens } = useAuthStore();
+
+  const deleteMutation = useMutation({
+    mutationFn: authApi.deleteAccount,
+    onSuccess: () => {
+      clearTokens();
+      window.location.href = "/";
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to delete account"),
+  });
+
+  const handleDelete = () => {
+    if (confirm("Permanently delete your account, reviews and repositories? This cannot be undone.")) {
+      deleteMutation.mutate();
+    }
+  };
 
   return (
     <div className="max-w-2xl space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white">Settings</h2>
-        <p className="text-slate-400 text-sm mt-1">Manage your account and preferences.</p>
+        <p className="text-slate-400 text-sm mt-1">Manage your account.</p>
       </div>
 
       {/* Profile */}
@@ -44,57 +62,6 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* AI Provider */}
-      <div className="glass-card rounded-2xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Cpu className="w-4 h-4 text-brand-400" />
-          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">AI Provider</h3>
-        </div>
-        <div className="space-y-3">
-          {[
-            { id: "gemini", label: "Google Gemini", desc: "Primary provider — fast, cost-effective", default: true },
-            { id: "openai", label: "OpenAI GPT-4o", desc: "High-quality reviews", default: false },
-            { id: "claude", label: "Anthropic Claude", desc: "Excellent code analysis", default: false },
-          ].map((provider) => (
-            <label key={provider.id} className="flex items-start gap-3 p-3 rounded-xl cursor-pointer hover:bg-surface-2 transition-colors">
-              <input
-                type="radio"
-                name="provider"
-                value={provider.id}
-                defaultChecked={provider.default}
-                className="mt-0.5 accent-brand-500"
-              />
-              <div>
-                <p className="text-sm font-medium text-white">{provider.label}</p>
-                <p className="text-xs text-slate-400">{provider.desc}</p>
-              </div>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Notifications */}
-      <div className="glass-card rounded-2xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Bell className="w-4 h-4 text-brand-400" />
-          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Notifications</h3>
-        </div>
-        <div className="space-y-3">
-          {[
-            { label: "Review completed", desc: "Notify when an AI review finishes" },
-            { label: "Analysis completed", desc: "Notify when repository analysis is done" },
-          ].map(({ label, desc }) => (
-            <div key={label} className="flex items-center justify-between p-3 rounded-xl hover:bg-surface-2 transition-colors">
-              <div>
-                <p className="text-sm font-medium text-white">{label}</p>
-                <p className="text-xs text-slate-400">{desc}</p>
-              </div>
-              <input type="checkbox" defaultChecked className="accent-brand-500" />
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Danger zone */}
       <div className="glass-card rounded-2xl p-6 border border-red-500/20">
         <div className="flex items-center gap-2 mb-4">
@@ -102,9 +69,14 @@ export default function SettingsPage() {
           <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wider">Danger Zone</h3>
         </div>
         <p className="text-sm text-slate-400 mb-4">
-          Deleting your account permanently removes all reviews and data. This cannot be undone.
+          Deleting your account permanently removes all reviews, stored code and repositories. This cannot be undone.
         </p>
-        <button className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm transition-colors">
+        <button
+          onClick={handleDelete}
+          disabled={deleteMutation.isPending}
+          className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm transition-colors disabled:opacity-50"
+        >
+          {deleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
           Delete Account
         </button>
       </div>

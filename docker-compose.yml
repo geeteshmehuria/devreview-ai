@@ -1,3 +1,5 @@
+# Local development stack. Ports are bound to 127.0.0.1 so the database and
+# Redis (with their default dev passwords) are never reachable from the network.
 services:
   db:
     image: postgres:16-alpine
@@ -10,7 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-devreview}"]
       interval: 10s
@@ -22,12 +24,14 @@ services:
     container_name: devreview_redis
     restart: unless-stopped
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secret}
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:-redis_secret}  # lets the healthcheck auth without a CLI arg
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,7 +48,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-devreview}:${POSTGRES_PASSWORD:-devreview_secret}@db:5432/${POSTGRES_DB:-devreview_ai}
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis_secret}@redis:6379/0
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -52,8 +56,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
-      - repo_clones:/tmp/repos
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   frontend:
     build:
@@ -63,9 +66,10 @@ services:
     container_name: devreview_frontend
     restart: unless-stopped
     env_file:
-      - ./frontend/.env.local
+      - path: ./frontend/.env.local
+        required: false
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - backend
     volumes:
@@ -77,4 +81,3 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  repo_clones:

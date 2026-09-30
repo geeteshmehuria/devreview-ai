@@ -55,16 +55,20 @@ class Repository(Base, UUIDMixin, TimestampMixin):
     # Cached analysis results (JSONB for flexible schema evolution)
     analysis_summary: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
 
-    # Relationships
+    # Relationships — passive_deletes lets the DB's ON DELETE rules handle children,
+    # so deleting a repository never lazy-loads collections in the async session.
     owner: Mapped["User"] = relationship("User", back_populates="repositories")  # noqa: F821
     health_snapshots: Mapped[list["RepositoryHealth"]] = relationship(
-        "RepositoryHealth", back_populates="repository", order_by="RepositoryHealth.created_at.desc()"
+        "RepositoryHealth",
+        back_populates="repository",
+        order_by="RepositoryHealth.created_at.desc()",
+        passive_deletes=True,
     )
     pull_requests: Mapped[list["PullRequest"]] = relationship(  # noqa: F821
-        "PullRequest", back_populates="repository"
+        "PullRequest", back_populates="repository", passive_deletes=True
     )
     reviews: Mapped[list["Review"]] = relationship(  # noqa: F821
-        "Review", back_populates="repository"
+        "Review", back_populates="repository", passive_deletes=True
     )
 
     def __repr__(self) -> str:

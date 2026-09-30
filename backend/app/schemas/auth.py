@@ -7,7 +7,7 @@ from pydantic import BaseModel, field_validator
 
 class GitHubOAuthRequest(BaseModel):
     code: str
-    state: str | None = None
+    state: str  # signed value from /auth/github/url — verified server-side (CSRF)
 
 
 class TokenPair(BaseModel):

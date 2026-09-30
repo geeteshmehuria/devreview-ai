@@ -20,6 +20,8 @@ const LANGUAGES = [
   "csharp", "cpp", "ruby", "php", "swift", "kotlin",
 ];
 
+const MAX_CHARS = 100_000; // matches the API limit for pasted code and uploads
+
 type InputMode = "paste" | "upload";
 
 export default function ReviewPage() {
@@ -36,7 +38,8 @@ export default function ReviewPage() {
       if (mode === "upload" && uploadedFile) {
         return reviewsApi.reviewFile(uploadedFile, { language, detail_level: detailLevel });
       }
-      if (!code.trim()) throw new Error("No code to review");
+      if (code.trim().length < 10) throw new Error("Enter at least 10 characters of code");
+      if (code.length > MAX_CHARS) throw new Error("Code is too long (max 100,000 characters)");
       return reviewsApi.reviewCode({ content: code, language, detail_level: detailLevel });
     },
     onSuccess: (data) => {
@@ -52,19 +55,11 @@ export default function ReviewPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 1_000_000) {
-      toast.error("File too large. Max 1MB.");
+    if (file.size > MAX_CHARS) {
+      toast.error("File too large. Max 100 KB.");
       return;
     }
-    setUploadedFile(file);
-    // Detect language from extension
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    const extLangMap: Record<string, string> = {
-      py: "python", js: "javascript", ts: "typescript", tsx: "typescript",
-      jsx: "javascript", java: "java", go: "go", rs: "rust", cs: "csharp",
-      cpp: "cpp", rb: "ruby", php: "php",
-    };
-    if (ext && extLangMap[ext]) setLanguage(extLangMap[ext]);
+    setUploadedFile(file); // with "Auto-detect", the API infers the language from the extension
   };
 
   return (
@@ -189,8 +184,8 @@ export default function ReviewPage() {
                   <div className="w-16 h-16 rounded-2xl bg-surface-3 flex items-center justify-center mx-auto mb-4">
                     <Upload className="w-8 h-8 text-slate-500" />
                   </div>
-                  <p className="text-white font-medium">Drop a file or click to browse</p>
-                  <p className="text-slate-400 text-sm mt-1">Max 1MB · .py .js .ts .java .go .rs and more</p>
+                  <p className="text-white font-medium">Click to choose a file</p>
+                  <p className="text-slate-400 text-sm mt-1">Max 100 KB · .py .js .ts .java .go .rs and more</p>
                 </div>
               )}
             </div>
@@ -201,7 +196,7 @@ export default function ReviewPage() {
   );
 }
 
-function Select({ value, onChange, options }: {
+function Select({ value, onChange, options, label }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
@@ -210,6 +205,7 @@ function Select({ value, onChange, options }: {
   return (
     <div className="relative">
       <select
+        aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="appearance-none pl-3 pr-8 py-1.5 bg-surface-2 border border-surface-border text-white text-sm rounded-lg cursor-pointer hover:border-brand-600/40 transition-colors focus:outline-none focus:border-brand-500"

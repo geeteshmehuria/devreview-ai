@@ -36,6 +36,9 @@ describe("AuthStore", () => {
     useAuthStore.getState().setTokens("access-123", "refresh-456");
     expect(localStorage.getItem("access_token")).toBe("access-123");
     expect(localStorage.getItem("refresh_token")).toBe("refresh-456");
+    // Middleware marker cookie is set, and never contains the JWT
+    expect(document.cookie).toContain("session=1");
+    expect(document.cookie).not.toContain("access-123");
   });
 
   it("clearTokens removes tokens and nulls user", () => {
@@ -47,6 +50,7 @@ describe("AuthStore", () => {
 
     expect(localStorage.getItem("access_token")).toBeNull();
     expect(localStorage.getItem("refresh_token")).toBeNull();
+    expect(document.cookie).not.toContain("session=1");
     expect(useAuthStore.getState().user).toBeNull();
   });
 

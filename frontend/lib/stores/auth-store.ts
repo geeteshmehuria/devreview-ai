@@ -1,11 +1,12 @@
 /**
  * Global auth state (Zustand).
- * Keeps user + token state in memory; tokens are persisted in localStorage.
+ * Keeps user state in memory; tokens are persisted via lib/session.
  * This store is the single source of truth for "is user logged in?".
  */
 
 import { create } from "zustand";
 import type { User } from "@/types";
+import { clearSession, getAccessToken, saveSession } from "@/lib/session";
 
 interface AuthState {
   user: User | null;
@@ -26,18 +27,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setUser: (user) => set({ user }),
 
-  setTokens: (accessToken, refreshToken) => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("access_token", accessToken);
-      localStorage.setItem("refresh_token", refreshToken);
-    }
-  },
+  setTokens: (accessToken, refreshToken) => saveSession(accessToken, refreshToken),
 
   clearTokens: () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-    }
+    clearSession();
     set({ user: null });
   },
 
@@ -45,9 +38,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (get().isInitialized) return;
     set({ isLoading: true });
 
-    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-
-    if (!token) {
+    if (!getAccessToken()) {
       set({ isInitialized: true, isLoading: false });
       return;
     }
@@ -57,7 +48,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await authApi.me();
       set({ user, isInitialized: true, isLoading: false });
     } catch {
-      // Token invalid — clear and redirect
+      // Token invalid — clear it (the API client redirects to /login)
       get().clearTokens();
       set({ isInitialized: true, isLoading: false });
     }
@@ -71,5 +62,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // ignore API errors during logout
     }
     get().clearTokens();
+    window.location.href = "/login";
   },
 }));

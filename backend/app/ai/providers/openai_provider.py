@@ -14,18 +14,14 @@ settings = get_settings()
 
 class OpenAIProvider(AIProvider):
     provider_name = "openai"
-    model_name = "gpt-4o-mini"  # cost-effective; upgrade to gpt-4o for production
 
     def __init__(self) -> None:
         if not settings.OPENAI_API_KEY:
             raise AIProviderError("OPENAI_API_KEY not configured")
+        self.model_name = settings.OPENAI_MODEL
         self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        reraise=True,
-    )
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     async def review(self, request: ReviewRequest) -> ReviewResponse:
         system_prompt, user_prompt = build_prompt(request)
 
@@ -47,14 +43,3 @@ class OpenAIProvider(AIProvider):
             prompt_tokens=response.usage.prompt_tokens if response.usage else 0,
             completion_tokens=response.usage.completion_tokens if response.usage else 0,
         )
-
-    async def health_check(self) -> bool:
-        try:
-            response = await self._client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": "Reply with: ok"}],
-                max_tokens=5,
-            )
-            return bool(response.choices[0].message.content)
-        except Exception:
-            return False

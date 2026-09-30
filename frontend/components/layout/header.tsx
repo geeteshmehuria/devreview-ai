@@ -1,7 +1,6 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 const PAGE_TITLES: Record<string, string> = {
@@ -29,13 +28,8 @@ export function Header() {
         <h1 className="text-white font-semibold text-lg">{title}</h1>
       </div>
 
-      <div className="flex items-center gap-3">
-        <button className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-surface-3 transition-colors">
-          <Bell className="w-5 h-5" />
-        </button>
-        <div className="w-8 h-8 rounded-full bg-brand-700 flex items-center justify-center text-white text-sm font-bold">
-          {user?.github_login?.[0]?.toUpperCase() || "?"}
-        </div>
+      <div className="w-8 h-8 rounded-full bg-brand-700 flex items-center justify-center text-white text-sm font-bold">
+        {user?.github_login?.[0]?.toUpperCase() || "?"}
       </div>
     </header>
   );

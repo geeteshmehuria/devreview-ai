@@ -26,17 +26,20 @@ export default function DashboardPage() {
     queryFn: () => repositoriesApi.list(),
   });
 
+  const { data: debt } = useQuery({ queryKey: ["debt"], queryFn: reviewsApi.debt });
+
   const recentReviews = reviews?.items || [];
   const repoList = repos || [];
-  const avgScore = recentReviews.length
-    ? Math.round(recentReviews.filter((r) => r.overall_score != null).reduce((a, r) => a + (r.overall_score || 0), 0) / recentReviews.filter((r) => r.overall_score != null).length)
+  const scored = recentReviews.filter((r) => r.overall_score != null);
+  const avgScore = scored.length
+    ? Math.round(scored.reduce((a, r) => a + (r.overall_score ?? 0), 0) / scored.length)
     : null;
 
   const stats = [
     { label: "Repositories", value: repoList.length, icon: GitBranch, href: "/repositories", color: "text-brand-400" },
     { label: "Total Reviews", value: reviews?.total || 0, icon: Code2, href: "/history", color: "text-blue-400" },
-    { label: "Avg Score", value: avgScore != null ? `${avgScore}` : "—", icon: TrendingUp, href: "/history", color: "text-emerald-400" },
-    { label: "Issues Found", value: "—", icon: AlertTriangle, href: "/debt", color: "text-orange-400" },
+    { label: "Avg Score (recent)", value: avgScore != null ? `${avgScore}` : "—", icon: TrendingUp, href: "/history", color: "text-emerald-400" },
+    { label: "Debt Items", value: debt ? debt.length : "—", icon: AlertTriangle, href: "/debt", color: "text-orange-400" },
   ];
 
   return (
@@ -102,7 +105,7 @@ export default function DashboardPage() {
                           {review.title || "Code Review"}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-slate-500 capitalize">{review.review_type.replace("_", " ")}</span>
+                          <span className="text-xs text-slate-500 capitalize">{review.review_type.replaceAll("_", " ")}</span>
                           {review.language && <span className="text-xs text-slate-600">· {review.language}</span>}
                         </div>
                       </div>
@@ -163,7 +166,7 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-2">
                 {repoList.slice(0, 4).map((repo) => (
-                  <Link key={repo.id} href={`/repositories/${repo.id}`}>
+                  <Link key={repo.id} href="/repositories">
                     <div className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-surface-3 transition-all cursor-pointer">
                       <GitBranch className="w-4 h-4 text-brand-400 shrink-0" />
                       <span className="text-sm text-slate-300 truncate">{repo.name}</span>

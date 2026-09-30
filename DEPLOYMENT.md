@@ -20,8 +20,10 @@ reused in production. Treat them as compromised and regenerate:
   https://aistudio.google.com/apikey and issue a fresh one.
 - **Database (Aiven)**: the app provisions a fresh Render Postgres, so the Aiven
   URL is not used in production. Rotate its password if it was ever shared.
-- **SECRET_KEY / JWT_SECRET_KEY**: Render generates new random values
-  automatically (see `render.yaml`). Never carry the dev values forward.
+- **JWT_SECRET_KEY**: Render generates a new random value automatically (see
+  `render.yaml`). Never carry the dev value forward — production refuses to
+  start with the default or a key shorter than 32 characters. It also derives
+  the key that encrypts stored GitHub tokens, so rotating it signs users out.
 
 `.env` is gitignored and was never committed — history is clean.
 
@@ -36,8 +38,7 @@ instance, all wired together.
 1. Push this repo to GitHub (see section 4 if you haven't committed yet).
 2. Render Dashboard → **New → Blueprint** → connect the repo → **Apply**.
 3. Render creates `devreview-api`, `devreview-db`, `devreview-redis`.
-   `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, and `JWT_SECRET_KEY` are filled in
-   automatically.
+   `DATABASE_URL`, `REDIS_URL`, and `JWT_SECRET_KEY` are filled in automatically.
 4. Open **devreview-api → Environment** and set the values marked `sync: false`:
 
    | Variable | Value |
@@ -60,9 +61,9 @@ Notes:
   `postgresql+asyncpg://` driver in `app/core/config.py`, so no manual edit is needed.
 - Free Render web services sleep after inactivity; the first request after idle
   is slow. Upgrade the plan to avoid cold starts.
-- A Celery worker is **not** part of this blueprint. If background review jobs
-  are enabled, add a Render **Background Worker** using the same repo with start
-  command `celery -A app.jobs worker` and the same env group.
+- Repository analysis runs in-process as a FastAPI background task (it clones
+  the repo into a temp dir), so a free instance's 512 MB limits repo size.
+- uvicorn runs with `--proxy-headers` so the rate limiter sees real client IPs.
 
 ## 2. Frontend on Vercel
 
@@ -74,8 +75,6 @@ Notes:
    | Variable | Value |
    |---|---|
    | `NEXT_PUBLIC_API_URL` | `https://<your-api>.onrender.com` |
-   | `NEXT_PUBLIC_APP_URL` | `https://<your-frontend>.vercel.app` |
-   | `NEXT_PUBLIC_GITHUB_CLIENT_ID` | production GitHub OAuth client id |
 
 4. **Deploy.** Copy the resulting `*.vercel.app` URL.
 5. Go back and finish Render step 4 with this URL (`ALLOWED_ORIGINS`,
@@ -91,19 +90,10 @@ Create at https://github.com/settings/applications/new:
 - **Authorization callback URL**: `https://<your-frontend>.vercel.app/callback`
   — this must exactly match `GITHUB_CALLBACK_URL` on the backend.
 
-The client **secret** lives only on the backend (Render). The client **id** is
-public and also goes in the frontend as `NEXT_PUBLIC_GITHUB_CLIENT_ID`.
+Both the client id and secret live only on the backend (Render); the frontend
+gets the authorize URL from `GET /api/v1/auth/github/url`.
 
-## 4. Commit and push
-
-Environment note: the current session's sandbox has a read-only-ish mount that
-blocks git writes, so the commit was left for you to run locally:
-
-```bash
-git add -A
-git commit -m "chore: production hardening + Render/Vercel deploy configs"
-git push origin main
-```
+## 4. Deploys
 
 Both Render and Vercel redeploy automatically on push to `main` once connected.
 
@@ -115,26 +105,24 @@ Both Render and Vercel redeploy automatically on push to `main` once connected.
 
 | Variable | Source | Notes |
 |---|---|---|
-| `APP_ENV` | `production` | disables `/api/docs`, enables HSTS |
-| `DEBUG` | `false` | never `true` in prod |
-| `SECRET_KEY` | Render generated | app signing key |
-| `JWT_SECRET_KEY` | Render generated | JWT signing key |
+| `APP_ENV` | `production` | enables HSTS and the JWT secret check |
+| `DEBUG` | `false` | never `true` in prod (exposes `/api/docs`) |
+| `JWT_SECRET_KEY` | Render generated | JWT signing + GitHub token encryption key |
 | `DATABASE_URL` | Render Postgres | `postgresql://` auto-normalized to asyncpg |
 | `REDIS_URL` | Render Key Value | cache |
-| `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` | Render Key Value | for optional worker |
 | `ALLOWED_ORIGINS` | manual | frontend origin(s), comma-separated |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | manual | production OAuth app |
 | `GITHUB_CALLBACK_URL` | manual | `https://<frontend>/callback` |
 | `GEMINI_API_KEY` | manual | AI provider |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | manual (optional) | runtime fallbacks |
 | `AI_PRIMARY_PROVIDER` | `gemini` | |
+| `GEMINI_MODEL` / `OPENAI_MODEL` / `CLAUDE_MODEL` | optional | override default model ids |
 
 ### Frontend (Vercel)
 
 | Variable | Notes |
 |---|---|
 | `NEXT_PUBLIC_API_URL` | Render backend base URL |
-| `NEXT_PUBLIC_APP_URL` | this site's URL |
-| `NEXT_PUBLIC_GITHUB_CLIENT_ID` | public client id |
 
 ---
 
@@ -142,8 +130,15 @@ Both Render and Vercel redeploy automatically on push to `main` once connected.
 
 - **CORS errors in the browser**: `ALLOWED_ORIGINS` on the backend must match the
   frontend origin exactly (scheme + host, no trailing slash). Redeploy after changes.
-- **Login redirects to `/login` in a loop**: the callback cookie isn't set. Check
-  `GITHUB_CALLBACK_URL` (backend) == OAuth app callback == `<frontend>/callback`.
+- **Login redirects to `/login` in a loop**: the `session` cookie isn't set because
+  the callback failed. Check `GITHUB_CALLBACK_URL` (backend) == OAuth app callback
+  == `<frontend>/callback`, and start the login from `/login` in the same browser
+  tab (the OAuth `state` check rejects logins started elsewhere).
+- **Boot fails with "JWT_SECRET_KEY must be set…"**: set a random 32+ char
+  `JWT_SECRET_KEY` (Render's generated value qualifies).
+- **"GitHub authorization expired. Please sign in again."**: stored GitHub tokens
+  are encrypted with a key derived from `JWT_SECRET_KEY`; after rotating it (or on
+  first deploy of this version) users just log in again.
 - **500 on boot / DB errors**: confirm `alembic upgrade head` ran (it's the first
   half of the start command; check the service logs at boot). A `postgresql://`
   URL is normalized automatically.

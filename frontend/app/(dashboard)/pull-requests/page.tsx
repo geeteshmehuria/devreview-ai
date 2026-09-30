@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation } from "@tanstack/react-query";
 import { GitPullRequest, Loader2, ExternalLink } from "lucide-react";
@@ -91,9 +92,12 @@ export default function PullRequestsPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-slate-500">PR #{result.pr_number}</span>
-                    <a href={prUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-300">
+                    <a href={mutation.variables} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-300">
                       <ExternalLink className="w-3 h-3" /> View on GitHub
                     </a>
+                    <Link href={`/history/${result.review_id}`} className="text-xs text-brand-400 hover:text-brand-300">
+                      View all findings →
+                    </Link>
                   </div>
                   <h3 className="text-white font-semibold text-lg mt-1">{result.pr_title}</h3>
                   <div className="flex items-center gap-4 mt-2">

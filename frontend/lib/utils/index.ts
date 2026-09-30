@@ -17,11 +17,10 @@ export function getScoreColor(score: number): string {
   return "text-red-400";
 }
 
-export function getScoreBg(score: number): string {
-  if (score >= 80) return "bg-emerald-500/10 border-emerald-500/20";
-  if (score >= 60) return "bg-yellow-500/10 border-yellow-500/20";
-  if (score >= 40) return "bg-orange-500/10 border-orange-500/20";
-  return "bg-red-500/10 border-red-500/20";
+export const SEVERITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+
+export function bySeverity(a: { severity: string }, b: { severity: string }): number {
+  return (SEVERITY_ORDER[a.severity] ?? 5) - (SEVERITY_ORDER[b.severity] ?? 5);
 }
 
 export function getSeverityColor(severity: string): string {
@@ -37,18 +36,21 @@ export function getSeverityColor(severity: string): string {
 
 export function formatDate(dateString: string | null | undefined): string {
   if (!dateString) return "Never";
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(dateString));
+  }).format(date);
 }
 
 export function formatRelativeTime(dateString: string | null | undefined): string {
   if (!dateString) return "Never";
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "—";
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60_000);
@@ -60,11 +62,6 @@ export function formatRelativeTime(dateString: string | null | undefined): strin
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
   return formatDate(dateString);
-}
-
-export function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen - 3) + "...";
 }
 
 export function categoryLabel(category: string): string {

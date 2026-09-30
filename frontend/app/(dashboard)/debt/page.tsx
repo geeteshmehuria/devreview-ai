@@ -1,46 +1,53 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Clock, TrendingDown, CheckCircle2, Filter } from "lucide-react";
 import { useState } from "react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, Clock, TrendingDown, ListChecks, Filter } from "lucide-react";
 import { reviewsApi } from "@/lib/api/reviews";
+import { bySeverity, cn, getSeverityColor } from "@/lib/utils";
+
+const SEVERITIES = ["critical", "high", "medium", "low"] as const;
 
 export default function DebtPage() {
   const [severityFilter, setSeverityFilter] = useState("all");
 
-  const { isLoading } = useQuery({
-    queryKey: ["reviews", { page: 1, page_size: 50 }],
-    queryFn: () => reviewsApi.list({ page: 1, page_size: 50 }),
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ["debt"],
+    queryFn: reviewsApi.debt,
   });
 
-  // For a real impl, we'd aggregate from all reviews. Here we show from recent.
+  const visible = items
+    .filter((d) => severityFilter === "all" || d.severity === severityFilter)
+    .sort(bySeverity);
+  const totalHours = items.reduce((sum, d) => sum + (d.estimated_hours ?? 0), 0);
+
+  const summary = [
+    { label: "Critical Items", value: items.filter((d) => d.severity === "critical").length, color: "text-red-400", icon: AlertTriangle },
+    { label: "High Priority", value: items.filter((d) => d.severity === "high").length, color: "text-orange-400", icon: TrendingDown },
+    { label: "Est. Hours", value: Math.round(totalHours), color: "text-yellow-400", icon: Clock },
+    { label: "Total Items", value: items.length, color: "text-emerald-400", icon: ListChecks },
+  ];
 
   return (
     <div className="max-w-5xl space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white">Technical Debt</h2>
-        <p className="text-slate-400 text-sm mt-1">Track and prioritise technical debt across your codebase.</p>
+        <p className="text-slate-400 text-sm mt-1">Debt items detected across all of your reviews and repository analyses.</p>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Critical Items", value: "—", color: "text-red-400", icon: AlertTriangle },
-          { label: "High Priority", value: "—", color: "text-orange-400", icon: TrendingDown },
-          { label: "Est. Hours", value: "—", color: "text-yellow-400", icon: Clock },
-          { label: "Resolved", value: "—", color: "text-emerald-400", icon: CheckCircle2 },
-        ].map(({ label, value, color, icon: Icon }) => (
+        {summary.map(({ label, value, color, icon: Icon }) => (
           <div key={label} className="glass-card rounded-2xl p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-slate-400">{label}</p>
               <Icon className={`w-4 h-4 ${color}`} />
             </div>
-            <p className={`text-2xl font-bold ${color}`}>{value}</p>
+            <p className={`text-2xl font-bold ${color}`}>{isLoading ? "—" : value}</p>
           </div>
         ))}
       </div>
 
-      {/* Empty state pointing to review flow */}
       <div className="glass-card rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-white font-semibold">Debt Items</h3>
@@ -49,13 +56,13 @@ export default function DebtPage() {
             <select
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value)}
+              aria-label="Filter by severity"
               className="px-3 py-1.5 bg-surface-2 border border-surface-border text-white text-sm rounded-lg focus:outline-none"
             >
               <option value="all">All Severities</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
+              {SEVERITIES.map((s) => (
+                <option key={s} value={s} className="capitalize">{s[0].toUpperCase() + s.slice(1)}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -66,37 +73,44 @@ export default function DebtPage() {
               <div key={i} className="h-16 bg-surface-2 rounded-xl animate-pulse" />
             ))}
           </div>
-        ) : (
+        ) : visible.length === 0 ? (
           <div className="text-center py-12">
             <AlertTriangle className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-            <p className="text-white font-medium mb-1">No debt items tracked yet</p>
+            <p className="text-white font-medium mb-1">
+              {items.length === 0 ? "No debt items tracked yet" : "No items with this severity"}
+            </p>
             <p className="text-slate-400 text-sm max-w-sm mx-auto">
-              Run a code review or repository analysis to automatically detect and track technical debt.
+              {items.length === 0
+                ? "Run a code review or repository analysis to automatically detect technical debt."
+                : "Try a different filter."}
             </p>
           </div>
+        ) : (
+          <div className="space-y-3">
+            {visible.map((d) => (
+              <div key={d.id} className="border border-surface-border rounded-xl p-4 bg-surface-2">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium capitalize", getSeverityColor(d.severity))}>
+                    {d.severity}
+                  </span>
+                  <span className="text-sm font-medium text-white">{d.title}</span>
+                  <span className="text-xs text-slate-500 capitalize">· {d.category}</span>
+                  {d.estimated_hours != null && (
+                    <span className="text-xs text-slate-500 ml-auto">~{d.estimated_hours}h</span>
+                  )}
+                </div>
+                <p className="text-sm text-slate-400">{d.description}</p>
+                {d.recommendation && (
+                  <p className="text-xs text-brand-300 mt-2"><span className="font-semibold">Fix: </span>{d.recommendation}</p>
+                )}
+                <Link href={`/history/${d.review_id}`} className="text-xs text-brand-400 hover:text-brand-300 mt-2 inline-block">
+                  From: {d.review_title || "review"}
+                  {d.file_path ? ` · ${d.file_path}` : ""}
+                </Link>
+              </div>
+            ))}
+          </div>
         )}
-      </div>
-
-      {/* How it works */}
-      <div className="glass-card rounded-2xl p-6">
-        <h3 className="text-white font-semibold mb-4">How Technical Debt is Tracked</h3>
-        <div className="grid md:grid-cols-3 gap-4">
-          {[
-            { step: "1", title: "Run a Review", desc: "Analyse code, files, or full repositories." },
-            { step: "2", title: "AI Detects Debt", desc: "The AI categorises debt by severity and estimates remediation hours." },
-            { step: "3", title: "Track Progress", desc: "Mark items resolved and watch your debt decrease over time." },
-          ].map(({ step, title, desc }) => (
-            <div key={step} className="flex gap-3">
-              <div className="w-7 h-7 rounded-full bg-brand-700/30 flex items-center justify-center text-brand-400 text-sm font-bold shrink-0">
-                {step}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">{title}</p>
-                <p className="text-sm text-slate-400 mt-0.5">{desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

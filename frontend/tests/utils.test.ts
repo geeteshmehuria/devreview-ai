@@ -4,7 +4,8 @@ import {
   getScoreColor,
   getSeverityColor,
   formatRelativeTime,
-  truncate,
+  formatDate,
+  bySeverity,
   categoryLabel,
 } from "@/lib/utils";
 
@@ -57,13 +58,10 @@ describe("getSeverityColor", () => {
   });
 });
 
-describe("truncate", () => {
-  it("truncates strings longer than maxLen", () => {
-    expect(truncate("hello world", 8)).toBe("hello...");
-  });
-
-  it("returns unchanged string when within maxLen", () => {
-    expect(truncate("short", 10)).toBe("short");
+describe("bySeverity", () => {
+  it("sorts critical first and unknown last", () => {
+    const sorted = [{ severity: "low" }, { severity: "weird" }, { severity: "critical" }].sort(bySeverity);
+    expect(sorted.map((f) => f.severity)).toEqual(["critical", "low", "weird"]);
   });
 });
 
@@ -84,5 +82,10 @@ describe("formatRelativeTime", () => {
   it("returns 'Just now' for very recent dates", () => {
     const now = new Date().toISOString();
     expect(formatRelativeTime(now)).toBe("Just now");
+  });
+
+  it("does not throw on invalid dates (regression: page crash)", () => {
+    expect(formatRelativeTime("5f0c1c1e-not-a-date")).toBe("—");
+    expect(formatDate("garbage")).toBe("—");
   });
 });

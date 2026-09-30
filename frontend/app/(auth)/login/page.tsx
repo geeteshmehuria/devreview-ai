@@ -15,7 +15,12 @@ export default function LoginPage() {
       const { url, state } = await authApi.getGithubUrl();
       // Persist the OAuth state so the callback page can verify GitHub
       // echoed the same value back (CSRF protection).
-      if (state) sessionStorage.setItem("oauth_state", state);
+      sessionStorage.setItem("oauth_state", state);
+      // Remember where the user was headed (same-site paths only — no open redirect).
+      const redirect = new URLSearchParams(window.location.search).get("redirect");
+      if (redirect?.startsWith("/") && !redirect.startsWith("//")) {
+        sessionStorage.setItem("post_login_redirect", redirect);
+      }
       window.location.href = url;
     } catch {
       toast.error("Failed to initiate GitHub login. Please try again.");
@@ -69,7 +74,7 @@ export default function LoginPage() {
           {/* Trust signals */}
           <div className="mt-6 pt-6 border-t border-surface-border space-y-3">
             {[
-              { icon: Shield, text: "We never store your code permanently" },
+              { icon: Shield, text: "Reviewed code is kept only in your private history — delete it anytime" },
               { icon: Zap, text: "First review in under 30 seconds" },
             ].map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3 text-sm text-slate-400">
@@ -79,10 +84,6 @@ export default function LoginPage() {
             ))}
           </div>
         </div>
-
-        <p className="text-center text-xs text-slate-500 mt-4">
-          By signing in you agree to our terms of service.
-        </p>
       </motion.div>
     </div>
   );

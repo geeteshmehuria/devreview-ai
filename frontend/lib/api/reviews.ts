@@ -1,5 +1,5 @@
-import apiClient from "./client";
-import type { Review, ReviewListResponse, PRReviewResult } from "@/types";
+import apiClient, { AI_TIMEOUT_MS } from "./client";
+import type { DebtItem, Review, ReviewListResponse, PRReviewResult } from "@/types";
 
 export const reviewsApi = {
   reviewCode: async (payload: {
@@ -7,9 +7,8 @@ export const reviewsApi = {
     language?: string;
     filename?: string;
     detail_level?: string;
-    ai_provider?: string | null;
   }): Promise<Review> => {
-    const { data } = await apiClient.post("/reviews/code", payload);
+    const { data } = await apiClient.post("/reviews/code", payload, { timeout: AI_TIMEOUT_MS });
     return data;
   },
 
@@ -20,16 +19,13 @@ export const reviewsApi = {
     form.append("detail_level", options?.detail_level || "detailed");
     const { data } = await apiClient.post("/reviews/file", form, {
       headers: { "Content-Type": "multipart/form-data" },
+      timeout: AI_TIMEOUT_MS,
     });
     return data;
   },
 
-  reviewPR: async (payload: {
-    pr_url: string;
-    detail_level?: string;
-    ai_provider?: string | null;
-  }): Promise<PRReviewResult> => {
-    const { data } = await apiClient.post("/pull-requests/review", payload);
+  reviewPR: async (payload: { pr_url: string; detail_level?: string }): Promise<PRReviewResult> => {
+    const { data } = await apiClient.post("/pull-requests/review", payload, { timeout: AI_TIMEOUT_MS });
     return data;
   },
 
@@ -44,6 +40,11 @@ export const reviewsApi = {
 
   get: async (id: string): Promise<Review> => {
     const { data } = await apiClient.get(`/reviews/${id}`);
+    return data;
+  },
+
+  debt: async (): Promise<DebtItem[]> => {
+    const { data } = await apiClient.get("/reviews/debt");
     return data;
   },
 };

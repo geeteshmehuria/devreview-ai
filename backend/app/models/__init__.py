@@ -1,6 +1,6 @@
 """ORM models — import order matters for Alembic to detect all tables."""
 
-from app.models.user import User, UserSettings
+from app.models.user import User
 from app.models.repository import Repository, RepositoryHealth
 from app.models.pull_request import PullRequest
 from app.models.review import (
@@ -11,11 +11,9 @@ from app.models.review import (
     CodeSmell,
     TechnicalDebt,
 )
-from app.models.audit import AuditLog
 
 __all__ = [
     "User",
-    "UserSettings",
     "Repository",
     "RepositoryHealth",
     "PullRequest",
@@ -25,5 +23,4 @@ __all__ = [
     "PerformanceFinding",
     "CodeSmell",
     "TechnicalDebt",
-    "AuditLog",
 ]

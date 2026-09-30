@@ -4,10 +4,14 @@ Clones repo, scans structure, feeds summarized content to AI.
 We truncate/sample to stay within token limits.
 """
 
+import asyncio
+import base64
 import os
+import re
 import shutil
 import tempfile
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -16,13 +20,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as aioredis
 
-from app.ai import get_ai_provider
+from app.ai import run_review
 from app.ai.base import ReviewRequest
 from app.core.config import get_settings
 from app.core.exceptions import GitHubError, NotFoundError
 from app.core.redis import cache_get, cache_set
 from app.models.repository import Repository, RepositoryHealth, RepositoryStatus
+from app.models.review import Review, ReviewType
 from app.models.user import User
+from app.services.auth_service import get_github_token
+from app.services.review_service import save_review
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -34,56 +41,60 @@ ANALYZED_EXTENSIONS = {
     ".vue", ".svelte",
 }
 SKIP_DIRS = {"node_modules", ".git", "dist", "build", ".next", "__pycache__", ".venv", "venv"}
+PRIORITY_FILES = [
+    "README.md", "package.json", "pyproject.toml", "Cargo.toml",
+    "go.mod", "pom.xml", "build.gradle", "requirements.txt",
+    "docker-compose.yml", "Dockerfile", ".env.example",
+]
 MAX_FILE_SIZE = 50_000   # chars per file
 MAX_FILES_SAMPLED = 30
 MAX_TOTAL_CHARS = 150_000
+CLONE_TIMEOUT_SECONDS = 120
+
+_REPO_URL = re.compile(r"^https://github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?(?:/.*)?$")
 
 
-async def import_repository(
-    db: AsyncSession,
-    user_id: str,
-    repo_url: str,
-    github_token: str,
-) -> Repository:
-    """Import repository metadata from GitHub without cloning."""
-    # Parse github.com/owner/repo
-    parts = repo_url.rstrip("/").split("/")
-    if len(parts) < 5:
-        raise GitHubError(f"Invalid GitHub URL: {repo_url}")
-    owner, repo_name = parts[-2], parts[-1]
+def parse_repo_url(repo_url: str) -> tuple[str, str]:
+    """Return (owner, repo) from URLs like .../owner/repo, .../repo.git or .../repo/tree/main."""
+    match = _REPO_URL.match(repo_url.strip())
+    if not match:
+        raise GitHubError("Invalid GitHub repository URL")
+    return match.group(1), match.group(2)
 
+
+def _fetch_repo(token: str, full_name: str) -> dict:
+    """Blocking PyGithub call — run in a worker thread."""
     try:
-        gh = Github(auth=Auth.Token(github_token))
-        gh_repo = gh.get_repo(f"{owner}/{repo_name}")
+        r = Github(auth=Auth.Token(token)).get_repo(full_name)
+        return {
+            "github_repo_id": r.id, "full_name": r.full_name, "name": r.name,
+            "description": r.description, "url": r.html_url, "clone_url": r.clone_url,
+            "default_branch": r.default_branch, "language": r.language,
+            "stars": r.stargazers_count, "forks": r.forks_count,
+            "open_issues": r.open_issues_count, "is_private": r.private,
+        }
     except GithubException as e:
-        raise GitHubError(f"GitHub API error: {e.data.get('message', str(e))}")
+        if e.status in (401, 403, 404):
+            raise GitHubError("Repository not found or you don't have access to it")
+        raise GitHubError("GitHub API error while fetching the repository")
 
-    # Check if already imported
+
+async def import_repository(db: AsyncSession, user: User, repo_url: str) -> Repository:
+    """Import repository metadata from GitHub without cloning."""
+    owner, repo_name = parse_repo_url(repo_url)
+    data = await asyncio.to_thread(_fetch_repo, get_github_token(user), f"{owner}/{repo_name}")
+
     result = await db.execute(
         select(Repository).where(
-            Repository.owner_id == uuid.UUID(user_id),
-            Repository.github_repo_id == gh_repo.id,
+            Repository.owner_id == user.id,
+            Repository.github_repo_id == data["github_repo_id"],
         )
     )
     existing = result.scalar_one_or_none()
     if existing:
         return existing
 
-    repo = Repository(
-        owner_id=uuid.UUID(user_id),
-        github_repo_id=gh_repo.id,
-        full_name=gh_repo.full_name,
-        name=gh_repo.name,
-        description=gh_repo.description,
-        url=gh_repo.html_url,
-        clone_url=gh_repo.clone_url,
-        default_branch=gh_repo.default_branch,
-        language=gh_repo.language,
-        stars=gh_repo.stargazers_count,
-        forks=gh_repo.forks_count,
-        open_issues=gh_repo.open_issues_count,
-        is_private=gh_repo.private,
-    )
+    repo = Repository(owner_id=user.id, **data)
     db.add(repo)
     await db.flush()
     return repo
@@ -92,64 +103,47 @@ async def import_repository(
 async def analyze_repository(
     db: AsyncSession,
     redis: aioredis.Redis,
-    repository_id: str,
-    user_id: str,
+    repository_id: uuid.UUID,
+    user_id: uuid.UUID,
     force_refresh: bool = False,
 ) -> Repository:
-    """Full repository analysis — clones, scans, calls AI, saves health snapshot."""
+    """Full repository analysis — clones, scans, calls AI, saves health snapshot + review."""
     result = await db.execute(
-        select(Repository).where(
-            Repository.id == uuid.UUID(repository_id),
-            Repository.owner_id == uuid.UUID(user_id),
-        )
+        select(Repository).where(Repository.id == repository_id, Repository.owner_id == user_id)
     )
     repo = result.scalar_one_or_none()
     if not repo:
         raise NotFoundError("Repository not found")
 
-    # Cache check
-    cache_key = f"repo:{repository_id}"
-    if not force_refresh:
-        cached = await cache_get(redis, "repo_analysis", repository_id)
-        if cached:
-            logger.info("repo_analysis_cache_hit", repo=repo.full_name)
-            return repo
+    if not force_refresh and await cache_get(redis, "repo_analysis", str(repository_id)):
+        logger.info("repo_analysis_cache_hit", repo=repo.full_name)
+        return repo
 
     repo.status = RepositoryStatus.ANALYZING
-    await db.flush()
+    await db.commit()  # make the in-progress state visible to the UI
 
-    try:
-        # Get user's GitHub token
-        user_result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
-        user = user_result.scalar_one()
+    user = await db.get(User, user_id)
+    content = await _sample_repository(repo.clone_url, get_github_token(user))
 
-        # Sample repository content
-        content = await _sample_repository(repo.clone_url, user.github_access_token)
-
-        provider = get_ai_provider()
-        ai_request = ReviewRequest(
-            review_type="repository",
+    ai_response = await run_review(
+        ReviewRequest(
+            review_type=ReviewType.REPOSITORY,
             content=content,
             language=repo.language or "auto",
-            context={
-                "repo_name": repo.full_name,
-                "language": repo.language,
-                "stars": repo.stars,
-            },
+            context={"repo_name": repo.full_name, "language": repo.language, "stars": repo.stars},
         )
-        ai_response = await provider.review(ai_request)
+    )
 
-        # Extract sub-scores from category_scores
-        score_map = {cs.category: cs.score for cs in ai_response.category_scores}
-
-        health = RepositoryHealth(
+    scores = {cs.category: cs.score for cs in ai_response.category_scores}
+    db.add(
+        RepositoryHealth(
             repository_id=repo.id,
             overall_score=ai_response.overall_score,
-            security_score=score_map.get("security", 50),
-            performance_score=score_map.get("performance", 50),
-            maintainability_score=score_map.get("maintainability", 50),
-            documentation_score=score_map.get("best_practices", 50),
-            complexity_score=score_map.get("architecture", 50),
+            security_score=scores.get("security", 50),
+            performance_score=scores.get("performance", 50),
+            maintainability_score=scores.get("maintainability", 50),
+            documentation_score=scores.get("best_practices", 50),
+            complexity_score=scores.get("architecture", 50),
             breakdown={
                 "category_scores": [
                     {"category": cs.category, "score": cs.score, "summary": cs.summary}
@@ -159,105 +153,117 @@ async def analyze_repository(
                 "performance_findings_count": len(ai_response.performance_findings),
             },
         )
-        db.add(health)
+    )
 
-        repo.status = RepositoryStatus.ANALYZED
-        repo.analysis_summary = {
-            "overall_score": ai_response.overall_score,
-            "ai_summary": ai_response.ai_summary,
-            "provider": ai_response.provider,
-            "model": ai_response.model,
-        }
-        repo.last_analyzed_at = str(uuid.uuid4())  # placeholder
+    # Also record it as a review so findings show up in History and Technical Debt.
+    review = Review(
+        user_id=user_id,
+        repository_id=repo.id,
+        review_type=ReviewType.REPOSITORY,
+        title=repo.full_name,
+        language=repo.language,
+        ai_provider=ai_response.provider,
+        ai_model=ai_response.model,
+    )
+    await save_review(db, review, ai_response)
 
-        # Cache for TTL
-        await cache_set(
-            redis, "repo_analysis",
-            {"analyzed": True, "score": ai_response.overall_score},
-            settings.CACHE_TTL_REPO_ANALYSIS,
-            repository_id,
-        )
+    repo.status = RepositoryStatus.ANALYZED
+    repo.last_analyzed_at = datetime.now(UTC).isoformat()
+    repo.analysis_summary = {
+        "overall_score": ai_response.overall_score,
+        "ai_summary": ai_response.ai_summary,
+        "provider": ai_response.provider,
+        "model": ai_response.model,
+        "review_id": str(review.id),
+        "scores": scores,
+    }
 
-        logger.info("repo_analysis_complete", repo=repo.full_name, score=ai_response.overall_score)
-
-    except Exception as e:
-        repo.status = RepositoryStatus.FAILED
-        logger.error("repo_analysis_failed", repo=repo.full_name, error=str(e))
-        raise
-
+    await cache_set(
+        redis, "repo_analysis",
+        {"analyzed": True, "score": ai_response.overall_score},
+        settings.CACHE_TTL_REPO_ANALYSIS,
+        str(repository_id),
+    )
+    logger.info("repo_analysis_complete", repo=repo.full_name, score=ai_response.overall_score)
     return repo
 
 
 async def _sample_repository(clone_url: str, github_token: str) -> str:
     """
-    Clone repo to temp dir and sample key files.
-    We don't send the entire codebase — we sample strategically.
+    Shallow-clone the repo to a temp dir and sample key files.
+    The token is passed as an HTTP header through git's env-based config, so it
+    never appears in the clone URL, argv (`ps`) or git's error output.
     """
-    import asyncio
-
-    # Inject token into clone URL for private repos
-    auth_url = clone_url.replace("https://", f"https://x-token:{github_token}@")
+    basic = base64.b64encode(f"x-access-token:{github_token}".encode()).decode()
+    env = {
+        **os.environ,
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
+        "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: basic {basic}",
+    }
 
     tmp_dir = tempfile.mkdtemp(prefix="devreview_")
     try:
         proc = await asyncio.create_subprocess_exec(
-            "git", "clone", "--depth=1", "--quiet", auth_url, tmp_dir,
+            # core.symlinks=false: symlinks are checked out as plain text files
+            "git", "-c", "core.symlinks=false", "clone", "--depth=1", "--quiet", clone_url, tmp_dir,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+        try:
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=CLONE_TIMEOUT_SECONDS)
+        except TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise GitHubError("Repository clone timed out")
 
         if proc.returncode != 0:
-            raise GitHubError(f"Git clone failed: {stderr.decode()[:500]}")
+            logger.warning("git_clone_failed", stderr=stderr.decode(errors="replace")[:500])
+            raise GitHubError("Failed to clone repository")
 
-        return _extract_repo_content(tmp_dir)
+        return await asyncio.to_thread(_extract_repo_content, tmp_dir)
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        await asyncio.to_thread(shutil.rmtree, tmp_dir, True)
+
+
+def _read_sample(root: Path, path: Path) -> str | None:
+    """Read a file only if it is a regular file inside the clone (never follow symlinks out)."""
+    try:
+        if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(root):
+            return None
+        return path.read_text(errors="replace")[:MAX_FILE_SIZE]
+    except OSError:
+        return None
 
 
 def _extract_repo_content(repo_path: str) -> str:
-    """Walk repo, sample files, build content string for AI."""
-    root = Path(repo_path)
+    """Walk repo, sample files, build content string for AI. Blocking — run in a thread."""
+    root = Path(repo_path).resolve()
     sections = []
     total_chars = 0
     files_sampled = 0
 
     # Prioritise important files first
-    priority_files = [
-        "README.md", "package.json", "pyproject.toml", "Cargo.toml",
-        "go.mod", "pom.xml", "build.gradle", "requirements.txt",
-        "docker-compose.yml", "Dockerfile", ".env.example",
-    ]
-
-    for filename in priority_files:
-        path = root / filename
-        if path.exists():
-            try:
-                content = path.read_text(errors="replace")[:MAX_FILE_SIZE]
-                sections.append(f"=== {filename} ===\n{content}")
-                total_chars += len(content)
-            except Exception:
-                pass
+    for filename in PRIORITY_FILES:
+        content = _read_sample(root, root / filename)
+        if content is not None:
+            sections.append(f"=== {filename} ===\n{content}")
+            total_chars += len(content)
 
     # Walk source files
     for path in sorted(root.rglob("*")):
         if files_sampled >= MAX_FILES_SAMPLED or total_chars >= MAX_TOTAL_CHARS:
             break
-        if path.is_dir():
+        if path.suffix not in ANALYZED_EXTENSIONS or any(skip in path.parts for skip in SKIP_DIRS):
             continue
-        if any(skip in path.parts for skip in SKIP_DIRS):
+        content = _read_sample(root, path)
+        if content is None:
             continue
-        if path.suffix not in ANALYZED_EXTENSIONS:
-            continue
-
-        try:
-            content = path.read_text(errors="replace")[:MAX_FILE_SIZE]
-            rel_path = path.relative_to(root)
-            sections.append(f"=== {rel_path} ===\n{content}")
-            total_chars += len(content)
-            files_sampled += 1
-        except Exception:
-            pass
+        sections.append(f"=== {path.relative_to(root)} ===\n{content}")
+        total_chars += len(content)
+        files_sampled += 1
 
     summary = f"Repository sampled {files_sampled} source files ({total_chars:,} chars)\n\n"
     return summary + "\n\n".join(sections)

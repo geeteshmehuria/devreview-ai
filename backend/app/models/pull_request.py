@@ -18,12 +18,12 @@ class PRStatus(StrEnum):
 
 
 class PullRequest(Base, UUIDMixin, TimestampMixin):
-    """A GitHub PR linked to an imported repository."""
+    """A reviewed GitHub PR — linked to an imported repository when the user has one."""
 
     __tablename__ = "pull_requests"
 
-    repository_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=False, index=True
+    repository_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("repositories.id", ondelete="CASCADE"), nullable=True, index=True
     )
 
     # GitHub metadata

@@ -40,22 +40,9 @@ export interface AnalysisSummary {
   ai_summary: string;
   provider: string;
   model: string;
-}
-
-export interface HealthSnapshot {
-  id: string;
-  overall_score: number;
-  security_score: number;
-  performance_score: number;
-  maintainability_score: number;
-  documentation_score: number;
-  complexity_score: number;
-  breakdown: Record<string, unknown> | null;
-  created_at: string;
-}
-
-export interface RepositoryDetail extends Repository {
-  health_snapshots: HealthSnapshot[];
+  review_id?: string;
+  /** Category scores (0-100) from the latest analysis, e.g. { security: 72 } */
+  scores?: Record<string, number>;
 }
 
 // ── Reviews ───────────────────────────────────────────────────────────────────
@@ -124,6 +111,7 @@ export interface ReviewListResponse {
 // ── Pull Requests ─────────────────────────────────────────────────────────────
 
 export interface PRReviewResult {
+  review_id: string;
   pr_number: number;
   pr_title: string;
   overall_score: number;
@@ -135,16 +123,18 @@ export interface PRReviewResult {
   provider: string;
 }
 
-// ── API ───────────────────────────────────────────────────────────────────────
+// ── Technical debt ────────────────────────────────────────────────────────────
 
-export interface ApiError {
-  detail: string;
-  type?: string;
-}
-
-export interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  page_size: number;
+export interface DebtItem {
+  id: string;
+  review_id: string;
+  review_title: string | null;
+  category: string;
+  severity: Severity;
+  title: string;
+  description: string;
+  file_path: string | null;
+  estimated_hours: number | null;
+  recommendation: string | null;
+  created_at: string | null;
 }

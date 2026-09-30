@@ -2,18 +2,13 @@ import apiClient from "./client";
 import type { TokenPair, User } from "@/types";
 
 export const authApi = {
-  getGithubUrl: async (): Promise<{ url: string; state?: string }> => {
+  getGithubUrl: async (): Promise<{ url: string; state: string }> => {
     const { data } = await apiClient.get("/auth/github/url");
     return data;
   },
 
-  githubCallback: async (code: string): Promise<{ tokens: TokenPair; user: User }> => {
-    const { data } = await apiClient.post("/auth/github/callback", { code });
-    return data;
-  },
-
-  refresh: async (refreshToken: string): Promise<TokenPair> => {
-    const { data } = await apiClient.post("/auth/refresh", { refresh_token: refreshToken });
+  githubCallback: async (code: string, state: string): Promise<{ tokens: TokenPair; user: User }> => {
+    const { data } = await apiClient.post("/auth/github/callback", { code, state });
     return data;
   },
 
@@ -24,5 +19,9 @@ export const authApi = {
   me: async (): Promise<User> => {
     const { data } = await apiClient.get("/auth/me");
     return data;
+  },
+
+  deleteAccount: async (): Promise<void> => {
+    await apiClient.delete("/auth/me");
   },
 };

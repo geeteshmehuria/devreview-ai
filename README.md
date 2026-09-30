@@ -36,11 +36,11 @@ Analyse repositories, review pull requests, detect security vulnerabilities, and
 Under the hood it is a production-grade full-stack application demonstrating:
 
 - **Frontend Engineering** — Next.js 15 App Router, React 19, TypeScript, Tailwind CSS v4
-- **Backend Engineering** — FastAPI with clean architecture (routers → services → repositories)
-- **AI Integration** — Provider abstraction layer (Gemini primary, OpenAI + Claude fallbacks)
-- **Database Design** — PostgreSQL with 12-table relational schema, UUID PKs, JSONB columns
-- **System Design** — Redis caching, background jobs, token refresh rotation
-- **Security** — GitHub OAuth, JWT with refresh rotation, middleware protection, rate limiting
+- **Backend Engineering** — FastAPI with layered architecture (routers → services → models)
+- **AI Integration** — Provider abstraction layer (Gemini primary, OpenAI + Claude runtime fallbacks)
+- **Database Design** — PostgreSQL with 10-table relational schema, UUID PKs, JSONB columns
+- **System Design** — Redis caching, background analysis tasks, token refresh rotation
+- **Security** — GitHub OAuth with signed state, encrypted GitHub tokens, JWT refresh rotation, rate limiting
 - **Performance** — Query caching, lazy loading, dynamic imports, connection pooling
 - **Testing** — Vitest + RTL (frontend), Pytest (backend), Playwright E2E
 - **DevOps** — Docker Compose, multi-stage Dockerfiles, health checks
@@ -108,8 +108,7 @@ Under the hood it is a production-grade full-stack application demonstrating:
 ## Database Schema
 
 ```sql
-users                   -- GitHub OAuth users, JWT refresh tokens
-user_settings           -- Per-user preferences (provider, notifications)
+users                   -- GitHub OAuth users (encrypted GitHub token, hashed refresh token)
 repositories            -- Imported GitHub repos with metadata + status
 repository_health       -- Timestamped health snapshots (enables trends)
 pull_requests           -- GitHub PR metadata + risk scores
@@ -119,7 +118,6 @@ security_findings       -- OWASP/CWE vulnerabilities with severity
 performance_findings    -- Performance issues with impact estimates
 code_smells             -- Refactoring opportunities
 technical_debt          -- Debt items with estimated remediation hours
-audit_logs              -- Append-only audit trail
 ```
 
 **Design decisions:**
@@ -135,11 +133,12 @@ audit_logs              -- Append-only audit trail
 
 ```python
 AIProvider (abstract)
-  ├── GeminiProvider    → gemini-2.0-flash-exp  (primary, best free tier)
-  ├── OpenAIProvider    → gpt-4o-mini           (fallback)
-  └── ClaudeProvider    → claude-3-5-haiku      (fallback)
+  ├── GeminiProvider    → GEMINI_MODEL  (default gemini-2.5-flash, primary)
+  ├── OpenAIProvider    → OPENAI_MODEL  (default gpt-4o-mini, fallback)
+  └── ClaudeProvider    → CLAUDE_MODEL  (default claude-haiku-4-5, fallback)
 
-get_ai_provider(preferred) → cascades through chain until one succeeds
+run_review(request, preferred) → tries each configured provider in order and falls
+back on a missing key, an API error, or unreadable output
 ```
 
 **Key design choices:**
@@ -158,10 +157,8 @@ get_ai_provider(preferred) → cascades through chain until one succeeds
 |---|---|
 | Framework | Next.js 15 (App Router) + React 19 |
 | Language | TypeScript 5.7 |
-| Styling | Tailwind CSS v4 |
-| UI Components | Radix UI primitives |
+| Styling | Tailwind CSS v4 (+ typography plugin) |
 | State | Zustand (auth) + TanStack Query (server) |
-| Forms | React Hook Form + Zod |
 | Charts | Recharts |
 | Animations | Framer Motion |
 | Editor | Monaco Editor |
@@ -177,8 +174,8 @@ get_ai_provider(preferred) → cascades through chain until one succeeds
 | ORM | SQLAlchemy 2.0 (async) |
 | Migrations | Alembic |
 | Cache | Redis 7 |
-| Auth | GitHub OAuth + JWT (python-jose) |
-| AI | google-generativeai / openai / anthropic |
+| Auth | GitHub OAuth + JWT (PyJWT), Fernet-encrypted GitHub tokens |
+| AI | google-genai / openai / anthropic |
 | Logging | structlog |
 | Rate Limiting | slowapi |
 
@@ -186,7 +183,7 @@ get_ai_provider(preferred) → cascades through chain until one succeeds
 | Component | Technology |
 |---|---|
 | Containerisation | Docker + Docker Compose |
-| Background Jobs | Celery + Redis |
+| Background Jobs | FastAPI BackgroundTasks (repository analysis) |
 | CI | GitHub Actions (configured) |
 
 ---
@@ -210,7 +207,7 @@ devreview-ai/
 │   │   └── layout.tsx
 │   ├── components/
 │   │   ├── layout/             # Sidebar, Header
-│   │   ├── providers/          # Theme, Query, Auth providers
+│   │   ├── providers/          # Query, Auth providers
 │   │   ├── review/             # ReviewResultPanel with tabs
 │   │   └── shared/             # ScoreRing, Skeleton, etc.
 │   ├── lib/
@@ -230,7 +227,7 @@ devreview-ai/
 │   │   ├── schemas/            # Pydantic request/response schemas
 │   │   ├── ai/                 # Provider abstraction layer
 │   │   │   ├── base.py         # Abstract AIProvider + dataclasses
-│   │   │   ├── factory.py      # get_ai_provider() with fallback chain
+│   │   │   ├── factory.py      # run_review() with runtime fallback chain
 │   │   │   ├── prompts.py      # PromptBuilder (provider-agnostic)
 │   │   │   ├── response_formatter.py
 │   │   │   └── providers/      # GeminiProvider, OpenAIProvider, ClaudeProvider
@@ -239,7 +236,8 @@ devreview-ai/
 │   │   └── tests/              # Pytest tests
 │   ├── alembic/                # DB migrations
 │   ├── Dockerfile
-│   └── requirements.txt
+│   ├── requirements.txt        # runtime dependencies
+│   └── requirements-dev.txt    # + test dependencies
 │
 ├── docker-compose.yml
 └── README.md
@@ -266,7 +264,7 @@ cd devreview-ai
 
 1. Go to **GitHub → Settings → Developer Settings → OAuth Apps → New OAuth App**
 2. Set **Homepage URL**: `http://localhost:3000`
-3. Set **Authorization callback URL**: `http://localhost:3000/auth/callback`
+3. Set **Authorization callback URL**: `http://localhost:3000/callback`
 4. Copy **Client ID** and **Client Secret**
 
 ### 3. Configure environment variables
@@ -277,13 +275,10 @@ cp backend/.env.example backend/.env
 # Edit backend/.env — set:
 # GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
 # GEMINI_API_KEY
-# SECRET_KEY (any 32+ char random string)
 # JWT_SECRET_KEY (any 32+ char random string)
 
-# Frontend
+# Frontend (only NEXT_PUBLIC_API_URL, defaults to http://localhost:8000)
 cp frontend/.env.example frontend/.env.local
-# Edit frontend/.env.local — set:
-# NEXT_PUBLIC_GITHUB_CLIENT_ID (same as above)
 ```
 
 ### 4. Start with Docker Compose
@@ -292,18 +287,13 @@ cp frontend/.env.example frontend/.env.local
 docker compose up --build
 ```
 
-This starts PostgreSQL, Redis, FastAPI backend, and Next.js frontend.
+This starts PostgreSQL, Redis, the FastAPI backend (which runs `alembic upgrade head`
+on start) and the Next.js frontend. All ports are bound to `127.0.0.1`.
 
-### 5. Run database migrations
-
-```bash
-docker compose exec backend alembic upgrade head
-```
-
-### 6. Open the app
+### 5. Open the app
 
 - **Frontend**: http://localhost:3000
-- **API Docs**: http://localhost:8000/api/docs
+- **API Docs**: http://localhost:8000/api/docs (only when `DEBUG=true`)
 
 ---
 
@@ -333,7 +323,7 @@ npm test
 ### Backend (Pytest)
 ```bash
 cd backend
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 pytest
 ```
 
@@ -348,23 +338,28 @@ npm run test:e2e
 
 ## API Documentation
 
-The FastAPI app auto-generates interactive docs at `/api/docs` (Swagger UI) and `/api/redoc`.
+With `DEBUG=true` the FastAPI app serves interactive docs at `/api/docs` (Swagger UI) and `/api/redoc`.
+Endpoints that call the AI or clone repositories are rate limited to 10 requests/minute per client.
 
 ### Key endpoints
 
 ```
-POST   /api/v1/auth/github/callback    Exchange GitHub code for JWT tokens
+GET    /api/v1/auth/github/url         GitHub authorize URL + signed OAuth state
+POST   /api/v1/auth/github/callback    Exchange GitHub code (+ state) for JWT tokens
 POST   /api/v1/auth/refresh            Rotate refresh token
 GET    /api/v1/auth/me                 Get current user
+DELETE /api/v1/auth/me                 Delete account and all its data
 
 POST   /api/v1/reviews/code            Review pasted code snippet
-POST   /api/v1/reviews/file            Review uploaded file
+POST   /api/v1/reviews/file            Review uploaded file (max 100 KB)
 GET    /api/v1/reviews                 List review history (paginated)
+GET    /api/v1/reviews/debt            Technical-debt items across all reviews
 GET    /api/v1/reviews/{id}            Get review detail + findings
 
-POST   /api/v1/repositories            Import a GitHub repository
+POST   /api/v1/repositories            Import a GitHub repository (analysis runs in background)
 GET    /api/v1/repositories            List user's repositories
 POST   /api/v1/repositories/{id}/analyze  Trigger re-analysis
+DELETE /api/v1/repositories/{id}       Remove a repository
 
 POST   /api/v1/pull-requests/review    Review a GitHub PR by URL
 ```
@@ -379,8 +374,8 @@ Sequential integer IDs expose record counts and enable enumeration attacks. UUID
 **Why JSONB for AI responses?**
 AI output schema evolves frequently. JSONB lets us iterate on the response format without constant migrations, while still indexing specific keys when needed.
 
-**Why not store the full diff/source code?**
-We cap stored content at 50,000 characters. Full content is available from GitHub on demand. This keeps DB storage predictable.
+**What code is stored?**
+Pasted and uploaded code (max 100,000 characters) is kept with the review so history is complete. PR diffs and cloned repositories are not stored — clones are deleted right after sampling. Deleting the account removes everything.
 
 **Why refresh token rotation?**
 Stolen refresh tokens are immediately invalidated on next use. The previous refresh token hash is overwritten, forcing re-authentication.
@@ -426,7 +421,7 @@ Cloning and analysing a repository takes 30–120 seconds. FastAPI's `Background
 - [ ] Custom review rulesets (per-language severity thresholds)
 - [ ] Webhook-triggered automatic PR reviews
 - [ ] SARIF export for CI integration
-- [ ] Aggregated technical-debt dashboard across repositories
+- [ ] Mark technical-debt items as resolved
 
 ---
 

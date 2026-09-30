@@ -99,12 +99,15 @@ export default function HistoryPage() {
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-xs text-slate-500 capitalize">
-                              {review.review_type.replace("_", " ")}
+                              {review.review_type.replaceAll("_", " ")}
                             </span>
                             {review.language && (
                               <span className="text-xs text-slate-600">· {review.language}</span>
                             )}
                             <span className="text-xs text-slate-600">· {review.ai_provider}</span>
+                            {review.status === "failed" && (
+                              <span className="text-xs px-1.5 rounded bg-red-500/10 text-red-400">failed</span>
+                            )}
                           </div>
                         </div>
 

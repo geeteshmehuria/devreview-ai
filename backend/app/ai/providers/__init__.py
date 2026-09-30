@@ -1,5 +1,1 @@
-from app.ai.providers.gemini import GeminiProvider
-from app.ai.providers.openai_provider import OpenAIProvider
-from app.ai.providers.claude_provider import ClaudeProvider
-
-__all__ = ["GeminiProvider", "OpenAIProvider", "ClaudeProvider"]
+"""Concrete AI providers — imported lazily by app.ai.factory so unused SDKs are never loaded."""

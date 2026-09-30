@@ -11,6 +11,8 @@ import { formatRelativeTime, getScoreColor } from "@/lib/utils";
 import { SkeletonCard } from "@/components/shared/skeleton";
 import type { Repository } from "@/types";
 
+const IN_PROGRESS: Repository["status"][] = ["pending", "analyzing"];
+
 export default function RepositoriesPage() {
   const [repoUrl, setRepoUrl] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -19,12 +21,22 @@ export default function RepositoriesPage() {
   const { data: repos = [], isLoading } = useQuery({
     queryKey: ["repositories"],
     queryFn: repositoriesApi.list,
+    // Poll while any analysis is running so status and score update without a reload.
+    refetchInterval: (query) =>
+      query.state.data?.some((r) => IN_PROGRESS.includes(r.status)) ? 5_000 : false,
   });
+
+  // Show the analysis as running immediately; polling then tracks the real status.
+  const markAnalyzing = (id: string) =>
+    qc.setQueryData<Repository[]>(["repositories"], (old) =>
+      old?.map((r) => (r.id === id ? { ...r, status: "analyzing" } : r))
+    );
 
   const addMutation = useMutation({
     mutationFn: (url: string) => repositoriesApi.add(url),
-    onSuccess: (repo) => {
-      qc.invalidateQueries({ queryKey: ["repositories"] });
+    onSuccess: async (repo) => {
+      await qc.invalidateQueries({ queryKey: ["repositories"] });
+      markAnalyzing(repo.id);
       toast.success(`${repo.name} imported. Analysis starting…`);
       setRepoUrl("");
       setShowForm(false);
@@ -38,16 +50,16 @@ export default function RepositoriesPage() {
       qc.invalidateQueries({ queryKey: ["repositories"] });
       toast.success("Repository removed");
     },
-    onError: () => toast.error("Failed to remove repository"),
+    onError: (e: Error) => toast.error(e.message || "Failed to remove repository"),
   });
 
   const analyzeMutation = useMutation({
     mutationFn: (id: string) => repositoriesApi.analyze(id, true),
     onSuccess: (repo) => {
-      qc.invalidateQueries({ queryKey: ["repositories"] });
+      markAnalyzing(repo.id);
       toast.success(`Analysis triggered for ${repo.name}`);
     },
-    onError: () => toast.error("Failed to trigger analysis"),
+    onError: (e: Error) => toast.error(e.message || "Failed to trigger analysis"),
   });
 
   const handleAdd = (e: React.FormEvent) => {
@@ -122,8 +134,10 @@ export default function RepositoriesPage() {
               key={repo.id}
               repo={repo}
               onAnalyze={() => analyzeMutation.mutate(repo.id)}
-              onDelete={() => deleteMutation.mutate(repo.id)}
-              isAnalyzing={analyzeMutation.isPending}
+              onDelete={() => {
+                if (confirm(`Remove ${repo.full_name} and its analysis history?`)) deleteMutation.mutate(repo.id);
+              }}
+              isAnalyzing={analyzeMutation.isPending && analyzeMutation.variables === repo.id}
             />
           ))}
         </div>
@@ -153,7 +167,12 @@ function RepoCard({ repo, onAnalyze, onDelete, isAnalyzing }: {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <Link href={`/repositories/${repo.id}`} className="text-white font-semibold hover:text-brand-400 transition-colors">
+            <Link
+              href={repo.analysis_summary?.review_id ? `/history/${repo.analysis_summary.review_id}` : repo.url}
+              target={repo.analysis_summary?.review_id ? undefined : "_blank"}
+              rel="noopener noreferrer"
+              className="text-white font-semibold hover:text-brand-400 transition-colors"
+            >
               {repo.full_name}
             </Link>
             {repo.is_private ? (
@@ -189,6 +208,7 @@ function RepoCard({ repo, onAnalyze, onDelete, isAnalyzing }: {
             disabled={isAnalyzing || repo.status === "analyzing"}
             className="p-2 rounded-lg text-slate-400 hover:text-brand-400 hover:bg-brand-700/20 transition-colors disabled:opacity-40"
             title="Re-analyse"
+            aria-label={`Re-analyse ${repo.full_name}`}
           >
             <RefreshCw className={`w-4 h-4 ${repo.status === "analyzing" ? "animate-spin" : ""}`} />
           </button>
@@ -196,6 +216,7 @@ function RepoCard({ repo, onAnalyze, onDelete, isAnalyzing }: {
             onClick={onDelete}
             className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
             title="Remove"
+            aria-label={`Remove ${repo.full_name}`}
           >
             <Trash2 className="w-4 h-4" />
           </button>

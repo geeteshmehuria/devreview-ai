@@ -1,24 +1,31 @@
 """Review request/response schemas."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+DetailLevel = Literal["brief", "detailed", "comprehensive"]
+ProviderName = Literal["gemini", "openai", "claude"]
+
+MAX_CODE_CHARS = 100_000
 
 
 class CodeReviewRequest(BaseModel):
-    content: str = Field(..., min_length=10, max_length=100_000)
-    language: str = "auto"
-    filename: str | None = None
-    detail_level: str = "detailed"
-    ai_provider: str | None = None  # None = use default
+    content: str = Field(..., min_length=10, max_length=MAX_CODE_CHARS)
+    language: str = Field("auto", max_length=50)
+    filename: str | None = Field(None, max_length=500)
+    detail_level: DetailLevel = "detailed"
+    ai_provider: ProviderName | None = None  # None = use default
 
 
 class PRReviewRequest(BaseModel):
-    pr_url: str = Field(..., pattern=r"https://github\.com/.+/pull/\d+")
-    detail_level: str = "detailed"
-    ai_provider: str | None = None
+    pr_url: str = Field(..., pattern=r"^https://github\.com/[\w.-]+/[\w.-]+/pull/\d+")
+    detail_level: DetailLevel = "detailed"
+    ai_provider: ProviderName | None = None
 
 
 class RepoAnalysisRequest(BaseModel):
-    repo_url: str = Field(..., pattern=r"https://github\.com/.+/.+")
+    repo_url: str = Field(..., pattern=r"^https://github\.com/[\w.-]+/[\w.-]+")
     force_refresh: bool = False
 
 
@@ -33,16 +40,12 @@ class FindingOut(BaseModel):
     recommendation: str | None
     extra: dict
 
-    model_config = {"from_attributes": True}
-
 
 class CategoryScoreOut(BaseModel):
     category: str
     score: float
     summary: str
     suggestions: list[str]
-
-    model_config = {"from_attributes": True}
 
 
 class ReviewOut(BaseModel):
@@ -56,15 +59,13 @@ class ReviewOut(BaseModel):
     ai_summary: str | None
     ai_provider: str
     ai_model: str
-    created_at: str
+    created_at: str | None
 
     category_scores: list[CategoryScoreOut] = []
     security_findings: list[FindingOut] = []
     performance_findings: list[FindingOut] = []
     code_smells: list[FindingOut] = []
     technical_debt: list[FindingOut] = []
-
-    model_config = {"from_attributes": True}
 
 
 class ReviewListItem(BaseModel):
@@ -76,9 +77,7 @@ class ReviewListItem(BaseModel):
     overall_score: float | None
     risk_score: float | None
     ai_provider: str
-    created_at: str
-
-    model_config = {"from_attributes": True}
+    created_at: str | None
 
 
 class ReviewListOut(BaseModel):
@@ -86,3 +85,17 @@ class ReviewListOut(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class DebtItemOut(BaseModel):
+    id: str
+    review_id: str
+    review_title: str | None
+    category: str
+    severity: str
+    title: str
+    description: str
+    file_path: str | None
+    estimated_hours: float | None
+    recommendation: str | None
+    created_at: str | None

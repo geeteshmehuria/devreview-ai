@@ -14,18 +14,14 @@ settings = get_settings()
 
 class ClaudeProvider(AIProvider):
     provider_name = "claude"
-    model_name = "claude-3-5-haiku-20241022"  # Fast + cheap for portfolio
 
     def __init__(self) -> None:
         if not settings.ANTHROPIC_API_KEY:
             raise AIProviderError("ANTHROPIC_API_KEY not configured")
+        self.model_name = settings.CLAUDE_MODEL
         self._client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        reraise=True,
-    )
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     async def review(self, request: ReviewRequest) -> ReviewResponse:
         system_prompt, user_prompt = build_prompt(request)
 
@@ -35,8 +31,7 @@ class ClaudeProvider(AIProvider):
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
-
-        raw_text = response.content[0].text if response.content else ""
+        raw_text = "".join(block.text for block in response.content if block.type == "text")
 
         return format_response(
             raw_text=raw_text,
@@ -45,14 +40,3 @@ class ClaudeProvider(AIProvider):
             prompt_tokens=response.usage.input_tokens if response.usage else 0,
             completion_tokens=response.usage.output_tokens if response.usage else 0,
         )
-
-    async def health_check(self) -> bool:
-        try:
-            response = await self._client.messages.create(
-                model=self.model_name,
-                max_tokens=5,
-                messages=[{"role": "user", "content": "Reply with: ok"}],
-            )
-            return bool(response.content)
-        except Exception:
-            return False

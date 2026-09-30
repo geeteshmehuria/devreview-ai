@@ -1,5 +1,5 @@
 import apiClient from "./client";
-import type { Repository, RepositoryDetail } from "@/types";
+import type { Repository } from "@/types";
 
 export const repositoriesApi = {
   add: async (repo_url: string, force_refresh = false): Promise<Repository> => {
@@ -9,11 +9,6 @@ export const repositoriesApi = {
 
   list: async (): Promise<Repository[]> => {
     const { data } = await apiClient.get("/repositories");
-    return data;
-  },
-
-  get: async (id: string): Promise<RepositoryDetail> => {
-    const { data } = await apiClient.get(`/repositories/${id}`);
     return data;
   },
 

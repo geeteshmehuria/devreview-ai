@@ -87,10 +87,5 @@ class AIProvider(ABC):
         """Run a code review and return a normalised response."""
         ...
 
-    @abstractmethod
-    async def health_check(self) -> bool:
-        """Return True if the provider is reachable."""
-        ...
-
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} model={self.model_name}>"

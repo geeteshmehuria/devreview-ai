@@ -1,18 +1,19 @@
 """Auth router — GitHub OAuth endpoints."""
 
-import secrets
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Request
+import jwt
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, UnauthorizedError
+from app.core.security import create_state_token, decode_token
 from app.middleware.auth import get_current_user
 from app.models.user import User
 from app.schemas.auth import GitHubOAuthRequest, RefreshRequest, TokenPair, UserPublic
-from app.services.auth_service import login_with_github, logout, refresh_access_token
+from app.services.auth_service import delete_account, login_with_github, logout, refresh_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
@@ -22,14 +23,14 @@ settings = get_settings()
 async def github_oauth_url():
     """Return the GitHub OAuth authorization URL for the frontend to redirect to.
 
-    Also returns a random ``state`` value. The frontend stores it before
-    redirecting and verifies GitHub echoes the same value back on the
+    Also returns a signed, short-lived ``state``. The frontend keeps it and checks
+    GitHub echoes the same value back; the backend verifies its signature on the
     callback (CSRF protection for the login flow).
     """
     if not settings.GITHUB_CLIENT_ID:
         raise AppException("GitHub OAuth is not configured (missing GITHUB_CLIENT_ID)")
 
-    state = secrets.token_urlsafe(32)
+    state = create_state_token()
     params = urlencode(
         {
             "client_id": settings.GITHUB_CLIENT_ID,
@@ -47,6 +48,12 @@ async def github_callback(
     db: AsyncSession = Depends(get_db),
 ):
     """Exchange GitHub OAuth code for JWT tokens."""
+    try:
+        if decode_token(payload.state).get("type") != "oauth_state":
+            raise UnauthorizedError("Invalid login state")
+    except jwt.PyJWTError:
+        raise UnauthorizedError("Login session expired. Please try signing in again.")
+
     tokens, user = await login_with_github(db, payload.code)
     return {"tokens": tokens.model_dump(), "user": user.model_dump()}
 
@@ -61,12 +68,9 @@ async def refresh_token(
 
 
 @router.post("/logout")
-async def logout_user(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
+async def logout_user(current_user: User = Depends(get_current_user)):
     """Revoke the current user's refresh token."""
-    await logout(db, str(current_user.id))
+    await logout(current_user)
     return {"message": "Logged out successfully"}
 
 
@@ -74,3 +78,12 @@ async def logout_user(
 async def get_me(current_user: User = Depends(get_current_user)):
     """Return the currently authenticated user."""
     return UserPublic.model_validate(current_user)
+
+
+@router.delete("/me", status_code=204)
+async def delete_me(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Permanently delete the account and all of its reviews, repositories and findings."""
+    await delete_account(db, current_user)

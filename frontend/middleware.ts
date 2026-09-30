@@ -1,7 +1,8 @@
 /**
  * Next.js middleware — protects dashboard routes at the edge.
- * Checks for access_token cookie (set by auth callback).
- * No cookie → redirect to /login before any page renders.
+ * Checks for the non-secret `session` marker cookie (see lib/session.ts).
+ * No cookie → redirect to /login before any page renders. Real authorization
+ * happens in the API, which validates the bearer token on every request.
  *
  * This eliminates the "flash of unauthenticated content" completely —
  * the redirect happens at the CDN edge, not in the browser.
@@ -27,10 +28,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for auth token in cookie (set during GitHub callback)
-  const token = request.cookies.get("access_token")?.value;
-
-  if (!token) {
+  if (!request.cookies.get("session")?.value) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);

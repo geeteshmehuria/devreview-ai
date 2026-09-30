@@ -2,6 +2,7 @@
 
 import pytest
 from app.ai.response_formatter import format_response, _extract_json
+from app.core.exceptions import AIProviderError
 
 
 VALID_JSON_RESPONSE = """
@@ -77,11 +78,20 @@ class TestFormatResponse:
         assert finding.title == "N+1 query"
         assert finding.line_number == 42
 
-    def test_returns_fallback_on_invalid_json(self):
-        resp = format_response("not valid json", provider="gemini", model="test")
-        assert resp.overall_score == 0
-        assert resp.risk_score == 100
-        assert "Failed to parse" in resp.ai_summary
+    def test_raises_on_invalid_json(self):
+        """Unparseable output must not be saved as a real (score 0) review."""
+        with pytest.raises(AIProviderError):
+            format_response("not valid json", provider="gemini", model="test")
+
+    def test_coerces_and_clamps_bad_values(self):
+        raw = """{"overall_score": "high", "risk_score": 250,
+                  "category_scores": ["oops", {"category": "security", "score": -5}],
+                  "security_findings": [{"severity": "SEVERE!!", "title": "x", "line_number": "12-14"}]}"""
+        resp = format_response(raw, provider="gemini", model="test")
+        assert resp.overall_score == 50 and resp.risk_score == 100
+        assert [c.score for c in resp.category_scores] == [0]
+        finding = resp.security_findings[0]
+        assert finding.severity == "medium" and finding.line_number is None
 
     def test_token_counts_stored(self):
         resp = format_response(

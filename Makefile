@@ -1,4 +1,4 @@
-.PHONY: up down build logs migrate test-backend test-frontend test-e2e clean
+.PHONY: up up-d down build logs migrate migration test-backend test-frontend test-e2e test install-frontend install-backend clean docs
 
 ## Start all services
 up:
@@ -49,7 +49,7 @@ install-frontend:
 
 ## Install backend deps locally
 install-backend:
-	cd backend && pip install -r requirements.txt
+	cd backend && pip install -r requirements-dev.txt
 
 ## Clean docker volumes (WARNING: deletes database)
 clean:

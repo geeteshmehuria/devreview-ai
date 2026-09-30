@@ -1,47 +1,44 @@
 """Repository router."""
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-import redis.asyncio as aioredis
 import uuid
 
-from app.core.database import get_db
-from app.core.redis import get_redis
+import redis.asyncio as aioredis
+import structlog
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.database import AsyncSessionLocal, get_db
+from app.core.exceptions import NotFoundError
+from app.core.rate_limit import AI_LIMIT, limiter
+from app.core.redis import get_redis_pool
 from app.middleware.auth import get_current_user
-from app.models.repository import Repository
+from app.models.repository import Repository, RepositoryStatus
 from app.models.user import User
-from app.schemas.repository import RepositoryOut, RepositoryDetailOut
-from app.services.repository_service import import_repository, analyze_repository
+from app.schemas.repository import RepositoryDetailOut, RepositoryOut
 from app.schemas.review import RepoAnalysisRequest
+from app.services.repository_service import analyze_repository, import_repository
 
 router = APIRouter(prefix="/repositories", tags=["repositories"])
+logger = structlog.get_logger()
 
 
 @router.post("", response_model=RepositoryOut)
+@limiter.limit(AI_LIMIT)
 async def add_repository(
+    request: Request,
     payload: RepoAnalysisRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    redis: aioredis.Redis = Depends(get_redis),
 ):
     """Import a GitHub repository and trigger background analysis."""
-    repo = await import_repository(
-        db=db,
-        user_id=str(current_user.id),
-        repo_url=payload.repo_url,
-        github_token=current_user.github_access_token or "",
-    )
+    repo = await import_repository(db, current_user, payload.repo_url)
+    await db.commit()  # the background task uses its own session and must see this row
 
     # Fire analysis in background so HTTP response returns immediately
-    background_tasks.add_task(
-        _run_analysis_background,
-        db, redis,
-        str(repo.id), str(current_user.id),
-        payload.force_refresh,
-    )
-
+    background_tasks.add_task(_run_analysis_background, repo.id, current_user.id, payload.force_refresh)
     return _repo_to_out(repo)
 
 
@@ -56,94 +53,75 @@ async def list_repositories(
         .where(Repository.owner_id == current_user.id)
         .order_by(Repository.created_at.desc())
     )
-    repos = result.scalars().all()
-    return [_repo_to_out(r) for r in repos]
+    return [_repo_to_out(r) for r in result.scalars().all()]
 
 
 @router.get("/{repo_id}", response_model=RepositoryDetailOut)
 async def get_repository(
-    repo_id: str,
+    repo_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from sqlalchemy.orm import selectinload
-    from app.core.exceptions import NotFoundError
-
-    result = await db.execute(
-        select(Repository)
-        .options(selectinload(Repository.health_snapshots))
-        .where(
-            Repository.id == uuid.UUID(repo_id),
-            Repository.owner_id == current_user.id,
-        )
-    )
-    repo = result.scalar_one_or_none()
-    if not repo:
-        raise NotFoundError("Repository not found")
+    repo = await _get_owned_repo(db, repo_id, current_user, selectinload(Repository.health_snapshots))
     return _repo_detail_to_out(repo)
 
 
 @router.post("/{repo_id}/analyze", response_model=RepositoryOut)
+@limiter.limit(AI_LIMIT)
 async def trigger_analysis(
-    repo_id: str,
+    request: Request,
+    repo_id: uuid.UUID,
     background_tasks: BackgroundTasks,
     force_refresh: bool = Query(False),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    redis: aioredis.Redis = Depends(get_redis),
 ):
     """Re-trigger analysis on demand."""
-    from app.core.exceptions import NotFoundError
-    result = await db.execute(
-        select(Repository).where(
-            Repository.id == uuid.UUID(repo_id),
-            Repository.owner_id == current_user.id,
-        )
-    )
-    repo = result.scalar_one_or_none()
-    if not repo:
-        raise NotFoundError("Repository not found")
-
-    background_tasks.add_task(
-        _run_analysis_background,
-        db, redis,
-        repo_id, str(current_user.id), force_refresh,
-    )
+    repo = await _get_owned_repo(db, repo_id, current_user)
+    background_tasks.add_task(_run_analysis_background, repo.id, current_user.id, force_refresh)
     return _repo_to_out(repo)
 
 
 @router.delete("/{repo_id}", status_code=204)
 async def delete_repository(
-    repo_id: str,
+    repo_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.core.exceptions import NotFoundError
-    result = await db.execute(
-        select(Repository).where(
-            Repository.id == uuid.UUID(repo_id),
-            Repository.owner_id == current_user.id,
-        )
-    )
-    repo = result.scalar_one_or_none()
-    if not repo:
-        raise NotFoundError("Repository not found")
-    await db.delete(repo)
+    await db.delete(await _get_owned_repo(db, repo_id, current_user))
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-async def _run_analysis_background(db, redis, repo_id, user_id, force_refresh):
-    """Background task wrapper — needs its own DB session."""
-    from app.core.database import AsyncSessionLocal
+async def _get_owned_repo(db: AsyncSession, repo_id: uuid.UUID, user: User, *options) -> Repository:
+    result = await db.execute(
+        select(Repository)
+        .options(*options)
+        .where(Repository.id == repo_id, Repository.owner_id == user.id)
+    )
+    repo = result.scalar_one_or_none()
+    if not repo:
+        raise NotFoundError("Repository not found")
+    return repo
+
+
+async def _run_analysis_background(repo_id: uuid.UUID, user_id: uuid.UUID, force_refresh: bool):
+    """Background task — owns its DB session and Redis client (the request's are closed by now)."""
+    redis = aioredis.Redis(connection_pool=get_redis_pool())
     async with AsyncSessionLocal() as session:
         try:
             await analyze_repository(session, redis, repo_id, user_id, force_refresh)
             await session.commit()
         except Exception as e:
-            import structlog
-            structlog.get_logger().error("bg_analysis_failed", error=str(e))
+            logger.error("bg_analysis_failed", repo_id=str(repo_id), error=str(e))
             await session.rollback()
+            # Persist the failure so the UI stops showing "analyzing" forever.
+            await session.execute(
+                update(Repository).where(Repository.id == repo_id).values(status=RepositoryStatus.FAILED)
+            )
+            await session.commit()
+        finally:
+            await redis.aclose()
 
 
 def _repo_to_out(repo: Repository) -> dict:
@@ -177,6 +155,6 @@ def _repo_detail_to_out(repo: Repository) -> dict:
             "breakdown": h.breakdown,
             "created_at": h.created_at.isoformat() if h.created_at else None,
         }
-        for h in (repo.health_snapshots or [])
+        for h in repo.health_snapshots
     ]
     return out

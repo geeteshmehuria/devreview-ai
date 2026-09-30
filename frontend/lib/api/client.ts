@@ -4,8 +4,12 @@
  */
 
 import axios, { AxiosError, type AxiosRequestConfig } from "axios";
+import { clearSession, getAccessToken, getRefreshToken, saveSession } from "@/lib/session";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+/** AI reviews can take a while (large inputs + provider fallback). */
+export const AI_TIMEOUT_MS = 180_000;
 
 export const apiClient = axios.create({
   baseURL: `${API_URL}/api/v1`,
@@ -16,16 +20,14 @@ export const apiClient = axios.create({
 // ── Request interceptor: inject access token ──────────────────────────────────
 
 apiClient.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+  const token = getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// ── Response interceptor: auto-refresh on 401 ────────────────────────────────
+// ── Response interceptor: readable errors + auto-refresh on 401 ──────────────
 
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -43,10 +45,14 @@ function processQueue(error: AxiosError | null, token: string | null = null) {
 
 apiClient.interceptors.response.use(
   (response) => response,
-  async (error: AxiosError) => {
+  async (error: AxiosError<{ detail?: unknown }>) => {
+    // Surface the backend's message so `toast.error(e.message)` is meaningful everywhere.
+    const detail = error.response?.data?.detail;
+    if (typeof detail === "string") error.message = detail;
+
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -61,10 +67,10 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = localStorage.getItem("refresh_token");
+      const refreshToken = getRefreshToken();
       if (!refreshToken) {
-        // No refresh token — user must re-login
-        _handleAuthFailure();
+        isRefreshing = false;
+        handleAuthFailure();
         return Promise.reject(error);
       }
 
@@ -72,21 +78,16 @@ apiClient.interceptors.response.use(
         const { data } = await axios.post(`${API_URL}/api/v1/auth/refresh`, {
           refresh_token: refreshToken,
         });
-
-        const { access_token, refresh_token } = data;
-        localStorage.setItem("access_token", access_token);
-        localStorage.setItem("refresh_token", refresh_token);
-
-        apiClient.defaults.headers.common.Authorization = `Bearer ${access_token}`;
-        processQueue(null, access_token);
+        saveSession(data.access_token, data.refresh_token);
+        processQueue(null, data.access_token);
 
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+          originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
         }
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError as AxiosError, null);
-        _handleAuthFailure();
+        handleAuthFailure();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -97,10 +98,9 @@ apiClient.interceptors.response.use(
   }
 );
 
-function _handleAuthFailure() {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+function handleAuthFailure() {
+  clearSession();
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
     window.location.href = "/login";
   }
 }
