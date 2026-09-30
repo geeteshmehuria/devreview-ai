@@ -102,6 +102,30 @@ async def test_failed_review_is_saved_as_failed(auth_client, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_review_works_when_redis_is_down(auth_client, monkeypatch):
+    """The cache is optional: a Redis outage must not break reviews."""
+    import redis.asyncio as aioredis
+
+    class DownRedis:
+        async def get(self, key):
+            raise aioredis.ConnectionError("redis unavailable")
+
+        async def setex(self, key, ttl, value):
+            raise aioredis.ConnectionError("redis unavailable")
+
+    async def override_redis():
+        yield DownRedis()
+
+    async def fake_run_review(request, preferred=None):
+        return build_response(AI_DATA, "gemini", "test-model")
+
+    app.dependency_overrides[get_redis] = override_redis
+    monkeypatch.setattr(review_service, "run_review", fake_run_review)
+    response = await auth_client.post("/api/v1/reviews/code", json={"content": "x = compute(1, 2)"})
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.asyncio
 async def test_invalid_uuid_returns_422(auth_client):
     assert (await auth_client.get("/api/v1/reviews/not-a-uuid")).status_code == 422
     assert (await auth_client.delete("/api/v1/repositories/not-a-uuid")).status_code == 422
