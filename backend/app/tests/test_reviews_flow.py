@@ -131,6 +131,35 @@ async def test_invalid_uuid_returns_422(auth_client):
     assert (await auth_client.delete("/api/v1/repositories/not-a-uuid")).status_code == 422
 
 
+@pytest.mark.asyncio
+async def test_list_github_repos(auth_client, monkeypatch):
+    repo = {
+        "full_name": "octo/hello", "name": "hello", "description": None,
+        "url": "https://github.com/octo/hello", "language": "Python", "stars": 3,
+        "is_private": True, "updated_at": "2026-11-01T00:00:00+00:00",
+    }
+    tokens = []
+    monkeypatch.setattr(repository_service, "get_github_token", lambda user: "gh-token")
+    monkeypatch.setattr(repository_service, "_fetch_user_repos", lambda token: tokens.append(token) or [repo])
+
+    response = await auth_client.get("/api/v1/repositories/github")
+    assert response.status_code == 200, response.text
+    assert response.json() == [repo]
+    assert tokens == ["gh-token"]
+
+
+@pytest.mark.asyncio
+async def test_list_github_repos_without_stored_token_asks_to_sign_in(auth_client):
+    response = await auth_client.get("/api/v1/repositories/github")
+    assert response.status_code == 401
+    assert "sign in again" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_list_github_repos_requires_auth(client):
+    assert (await client.get("/api/v1/repositories/github")).status_code == 401
+
+
 def test_repo_sampling_skips_symlinks(tmp_path):
     """C1: a symlink in a cloned repo must never be read (it could point at server secrets)."""
     secret = tmp_path / "secret.env"

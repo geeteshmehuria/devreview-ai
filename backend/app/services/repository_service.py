@@ -79,6 +79,35 @@ def _fetch_repo(token: str, full_name: str) -> dict:
         raise GitHubError("GitHub API error while fetching the repository")
 
 
+MAX_LISTED_REPOS = 200
+
+
+def _fetch_user_repos(token: str) -> list[dict]:
+    """Blocking PyGithub call — run in a worker thread."""
+    try:
+        repos = Github(auth=Auth.Token(token), per_page=100).get_user().get_repos(
+            affiliation="owner,collaborator,organization_member", sort="updated"
+        )
+        return [
+            {
+                "full_name": r.full_name, "name": r.name, "description": r.description,
+                "url": r.html_url, "language": r.language, "stars": r.stargazers_count,
+                "is_private": r.private,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            }
+            for r in repos[:MAX_LISTED_REPOS]
+        ]
+    except GithubException as e:
+        if e.status == 401:
+            raise GitHubError("GitHub authorization expired. Please sign out and sign in again.")
+        raise GitHubError("GitHub API error while listing your repositories")
+
+
+async def list_user_repos(user: User) -> list[dict]:
+    """List GitHub repos the user can access (owned, collaborator, org), most recently updated first."""
+    return await asyncio.to_thread(_fetch_user_repos, get_github_token(user))
+
+
 async def import_repository(db: AsyncSession, user: User, repo_url: str) -> Repository:
     """Import repository metadata from GitHub without cloning."""
     owner, repo_name = parse_repo_url(repo_url)

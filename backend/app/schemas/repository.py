@@ -20,6 +20,19 @@ class RepositoryOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class GitHubRepoOut(BaseModel):
+    """A repo from the user's GitHub account, offered for import."""
+
+    full_name: str
+    name: str
+    description: str | None
+    url: str
+    language: str | None
+    stars: int
+    is_private: bool
+    updated_at: str | None
+
+
 class HealthSnapshotOut(BaseModel):
     id: str
     overall_score: float

@@ -16,9 +16,9 @@ from app.core.redis import get_redis_pool
 from app.middleware.auth import get_current_user
 from app.models.repository import Repository, RepositoryStatus
 from app.models.user import User
-from app.schemas.repository import RepositoryDetailOut, RepositoryOut
+from app.schemas.repository import GitHubRepoOut, RepositoryDetailOut, RepositoryOut
 from app.schemas.review import RepoAnalysisRequest
-from app.services.repository_service import analyze_repository, import_repository
+from app.services.repository_service import analyze_repository, import_repository, list_user_repos
 
 router = APIRouter(prefix="/repositories", tags=["repositories"])
 logger = structlog.get_logger()
@@ -54,6 +54,13 @@ async def list_repositories(
         .order_by(Repository.created_at.desc())
     )
     return [_repo_to_out(r) for r in result.scalars().all()]
+
+
+# Declared before /{repo_id} so "github" isn't parsed as a repository id.
+@router.get("/github", response_model=list[GitHubRepoOut])
+async def list_github_repositories(current_user: User = Depends(get_current_user)):
+    """List the current user's GitHub repositories so they can pick one to import."""
+    return await list_user_repos(current_user)
 
 
 @router.get("/{repo_id}", response_model=RepositoryDetailOut)
