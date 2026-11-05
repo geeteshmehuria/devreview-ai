@@ -1,16 +1,11 @@
-# Render Blueprint for DevReview AI — backend API + managed Postgres + Key Value (Redis).
+# Render Blueprint for DevReview AI — backend API + Key Value (Redis).
+# Postgres is hosted externally on Neon (free tier, no expiry) — set DATABASE_URL manually.
 #
 # Deploy: Render Dashboard → New → Blueprint → connect this repo → Apply.
 # After the first deploy, set the values marked `sync: false` in the Render
 # dashboard (Environment tab). See DEPLOYMENT.md for the full walkthrough.
 #
 # Docs: https://render.com/docs/blueprint-spec
-
-databases:
-  - name: devreview-db
-    plan: free
-    databaseName: devreview
-    user: devreview
 
 services:
   # ── Redis / cache (Render Key Value) ─────────────────────────────────────────
@@ -43,10 +38,6 @@ services:
       - key: JWT_SECRET_KEY
         generateValue: true
       # Wired automatically from the managed resources above
-      - key: DATABASE_URL
-        fromDatabase:
-          name: devreview-db
-          property: connectionString
       - key: REDIS_URL
         fromService:
           type: keyvalue
@@ -55,6 +46,9 @@ services:
       - key: AI_PRIMARY_PROVIDER
         value: gemini
       # ── Set these manually in the dashboard after deploy (sync: false) ─────────
+      # DATABASE_URL → Neon connection string (postgresql://...?sslmode=require)
+      - key: DATABASE_URL
+        sync: false
       # ALLOWED_ORIGINS  → your Vercel frontend URL, e.g. https://devreview-ai.vercel.app
       - key: ALLOWED_ORIGINS
         sync: false

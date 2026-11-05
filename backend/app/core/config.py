@@ -5,6 +5,7 @@ All config values come from environment variables with sensible defaults.
 
 from functools import lru_cache
 from typing import Annotated, Literal
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -47,7 +48,9 @@ class Settings(BaseSettings):
         Render/Heroku/etc. hand out a sync-driver URL (``postgres://`` or
         ``postgresql://``). The app uses SQLAlchemy's async engine, which
         requires the ``asyncpg`` driver, so rewrite the scheme. Also translate
-        libpq's ``sslmode`` query param, which asyncpg does not understand.
+        libpq's ``sslmode`` query param, which asyncpg does not understand, and
+        drop libpq-only params like ``channel_binding`` (added by Neon) that
+        asyncpg rejects outright.
         """
         if not isinstance(v, str):
             return v
@@ -55,7 +58,13 @@ class Settings(BaseSettings):
             v = v.replace("postgres://", "postgresql+asyncpg://", 1)
         elif v.startswith("postgresql://"):
             v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
-        return v.replace("sslmode=", "ssl=")
+        parts = urlsplit(v)
+        query = [
+            ("ssl" if k == "sslmode" else k, val)
+            for k, val in parse_qsl(parts.query)
+            if k != "channel_binding"
+        ]
+        return urlunsplit(parts._replace(query=urlencode(query)))
 
     # ── Redis ──────────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://:redis_secret@localhost:6379/0"

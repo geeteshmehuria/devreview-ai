@@ -1,6 +1,7 @@
 # Deployment Guide — DevReview AI
 
-Backend → **Render** (FastAPI + Postgres + Key Value/Redis)
+Backend → **Render** (FastAPI + Key Value/Redis)
+Database → **Neon** (Postgres, free tier — unlike Render's free Postgres it does not expire)
 Frontend → **Vercel** (Next.js)
 
 This guide is written so you can go from a clean repo to a live app. Steps that
@@ -18,7 +19,7 @@ reused in production. Treat them as compromised and regenerate:
   reuse the dev client secret.
 - **Gemini API key**: revoke the existing key at
   https://aistudio.google.com/apikey and issue a fresh one.
-- **Database (Aiven)**: the app provisions a fresh Render Postgres, so the Aiven
+- **Database (Aiven)**: production uses a separate Neon database, so the Aiven
   URL is not used in production. Rotate its password if it was ever shared.
 - **JWT_SECRET_KEY**: Render generates a new random value automatically (see
   `render.yaml`). Never carry the dev value forward — production refuses to
@@ -29,20 +30,36 @@ reused in production. Treat them as compromised and regenerate:
 
 ---
 
-## 1. Backend on Render
+## 1. Database on Neon
 
-The repo ships a **Render Blueprint** (`render.yaml`) that provisions three
-resources: the API web service, a Postgres database, and a Key Value (Redis)
-instance, all wired together.
+Render's free Postgres is deleted 30 days after creation, so the database lives on
+[Neon](https://neon.tech) instead (free tier, no expiry).
 
-1. Push this repo to GitHub (see section 4 if you haven't committed yet).
+1. Sign up at https://console.neon.tech → **New Project** (pick the region
+   closest to your Render service, e.g. AWS US East / Oregon).
+2. **Connect** → copy the connection string. Use the **direct** one (pooling
+   toggle off): the `-pooler` host runs PgBouncer, which breaks asyncpg's
+   prepared statements.
+3. Paste it as-is into Render's `DATABASE_URL` (step 2.4 below). The
+   `postgresql://` scheme, `sslmode=require`, and `channel_binding=require` are
+   normalized automatically in `app/core/config.py`.
+
+Tables are created by `alembic upgrade head` on the API's next boot.
+
+## 2. Backend on Render
+
+The repo ships a **Render Blueprint** (`render.yaml`) that provisions two
+resources: the API web service and a Key Value (Redis) instance, wired together.
+
+1. Push this repo to GitHub (see section 5 if you haven't committed yet).
 2. Render Dashboard → **New → Blueprint** → connect the repo → **Apply**.
-3. Render creates `devreview-api`, `devreview-db`, `devreview-redis`.
-   `DATABASE_URL`, `REDIS_URL`, and `JWT_SECRET_KEY` are filled in automatically.
+3. Render creates `devreview-api` and `devreview-redis`.
+   `REDIS_URL` and `JWT_SECRET_KEY` are filled in automatically.
 4. Open **devreview-api → Environment** and set the values marked `sync: false`:
 
    | Variable | Value |
    |---|---|
+   | `DATABASE_URL` | Neon connection string from step 1 |
    | `GITHUB_CLIENT_ID` | from your production GitHub OAuth app |
    | `GITHUB_CLIENT_SECRET` | from your production GitHub OAuth app |
    | `GITHUB_CALLBACK_URL` | `https://<your-frontend>.vercel.app/callback` |
@@ -65,7 +82,7 @@ Notes:
   the repo into a temp dir), so a free instance's 512 MB limits repo size.
 - uvicorn runs with `--proxy-headers` so the rate limiter sees real client IPs.
 
-## 2. Frontend on Vercel
+## 3. Frontend on Vercel
 
 1. Vercel → **Add New → Project** → import the same GitHub repo.
 2. **Root Directory** → set to `frontend` (this is a monorepo; Vercel needs the
@@ -82,7 +99,7 @@ Notes:
 
 Security headers are applied via `frontend/vercel.json`.
 
-## 3. GitHub OAuth app (production)
+## 4. GitHub OAuth app (production)
 
 Create at https://github.com/settings/applications/new:
 
@@ -93,7 +110,7 @@ Create at https://github.com/settings/applications/new:
 Both the client id and secret live only on the backend (Render); the frontend
 gets the authorize URL from `GET /api/v1/auth/github/url`.
 
-## 4. Deploys
+## 5. Deploys
 
 Both Render and Vercel redeploy automatically on push to `main` once connected.
 
@@ -108,7 +125,7 @@ Both Render and Vercel redeploy automatically on push to `main` once connected.
 | `APP_ENV` | `production` | enables HSTS and the JWT secret check |
 | `DEBUG` | `false` | never `true` in prod (exposes `/api/docs`) |
 | `JWT_SECRET_KEY` | Render generated | JWT signing + GitHub token encryption key |
-| `DATABASE_URL` | Render Postgres | `postgresql://` auto-normalized to asyncpg |
+| `DATABASE_URL` | Neon (manual) | `postgresql://` auto-normalized to asyncpg |
 | `REDIS_URL` | Render Key Value | cache |
 | `ALLOWED_ORIGINS` | manual | frontend origin(s), comma-separated |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | manual | production OAuth app |
@@ -142,6 +159,8 @@ Both Render and Vercel redeploy automatically on push to `main` once connected.
 - **500 on boot / DB errors**: confirm `alembic upgrade head` ran (it's the first
   half of the start command; check the service logs at boot). A `postgresql://`
   URL is normalized automatically.
+- **`connect() got an unexpected keyword argument`** / **prepared statement
+  errors**: use Neon's direct (non-`-pooler`) connection string.
 - **`asyncio extension requires an async driver`**: means the URL wasn't
   normalized — you're on an old `config.py`; pull latest.
 - **First request very slow**: free Render service cold start. Upgrade the plan.
