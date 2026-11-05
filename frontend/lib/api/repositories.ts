@@ -1,5 +1,5 @@
 import apiClient from "./client";
-import type { Repository } from "@/types";
+import type { GitHubRepo, Repository } from "@/types";
 
 export const repositoriesApi = {
   add: async (repo_url: string, force_refresh = false): Promise<Repository> => {
@@ -9,6 +9,12 @@ export const repositoriesApi = {
 
   list: async (): Promise<Repository[]> => {
     const { data } = await apiClient.get("/repositories");
+    return data;
+  },
+
+  /** Repos on the user's GitHub account (owned, collaborator, org), for the import picker. */
+  listGitHub: async (): Promise<GitHubRepo[]> => {
+    const { data } = await apiClient.get("/repositories/github");
     return data;
   },
 

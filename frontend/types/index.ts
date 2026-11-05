@@ -35,6 +35,18 @@ export interface Repository {
   analysis_summary: AnalysisSummary | null;
 }
 
+/** A repo from the user's GitHub account, offered for import. */
+export interface GitHubRepo {
+  full_name: string;
+  name: string;
+  description: string | null;
+  url: string;
+  language: string | null;
+  stars: number;
+  is_private: boolean;
+  updated_at: string | null;
+}
+
 export interface AnalysisSummary {
   overall_score: number;
   ai_summary: string;

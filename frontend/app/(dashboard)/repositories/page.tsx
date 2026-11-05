@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { GitBranch, Plus, Star, GitFork, Lock, Globe, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { GitBranch, Plus, Star, GitFork, Lock, Globe, Loader2, RefreshCw, Trash2, Search, Check } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { repositoriesApi } from "@/lib/api/repositories";
 import { formatRelativeTime, getScoreColor } from "@/lib/utils";
 import { SkeletonCard } from "@/components/shared/skeleton";
-import type { Repository } from "@/types";
+import type { GitHubRepo, Repository } from "@/types";
 
 const IN_PROGRESS: Repository["status"][] = ["pending", "analyzing"];
 
@@ -95,7 +95,13 @@ export default function RepositoriesPage() {
           onSubmit={handleAdd}
           className="glass-card rounded-2xl p-5"
         >
-          <p className="text-sm font-medium text-white mb-3">GitHub Repository URL</p>
+          <GitHubRepoPicker
+            imported={new Set(repos.map((r) => r.full_name.toLowerCase()))}
+            onPick={(repo) => addMutation.mutate(repo.url)}
+            pendingUrl={addMutation.isPending ? addMutation.variables : undefined}
+          />
+
+          <p className="text-sm font-medium text-white mt-5 mb-3">Or paste a GitHub repository URL</p>
           <div className="flex gap-3">
             <input
               type="url"
@@ -142,6 +148,105 @@ export default function RepositoriesPage() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Searchable list of the user's GitHub repos; clicking one imports it. */
+function GitHubRepoPicker({ imported, onPick, pendingUrl }: {
+  imported: Set<string>;
+  onPick: (repo: GitHubRepo) => void;
+  pendingUrl?: string;
+}) {
+  const [search, setSearch] = useState("");
+  const { data: ghRepos = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["github-repos"],
+    queryFn: repositoriesApi.listGitHub,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? ghRepos.filter((r) =>
+        [r.full_name, r.description, r.language].some((s) => s?.toLowerCase().includes(q))
+      )
+    : ghRepos;
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-white mb-3">Your GitHub repositories</p>
+      <div className="relative mb-2">
+        <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          // Enter here would submit the surrounding URL form.
+          onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+          placeholder="Search your repositories…"
+          aria-label="Search your GitHub repositories"
+          className="w-full pl-9 pr-4 py-2.5 bg-surface-2 border border-surface-border text-white placeholder-slate-500 rounded-xl text-sm focus:outline-none focus:border-brand-500 transition-colors"
+        />
+      </div>
+
+      <div className="max-h-72 overflow-y-auto rounded-xl border border-surface-border divide-y divide-surface-border">
+        {isLoading ? (
+          [...Array(4)].map((_, i) => <div key={i} className="h-12 animate-pulse bg-surface-2" />)
+        ) : isError ? (
+          <div className="p-4 text-sm text-red-400 flex items-center justify-between gap-3">
+            <span>{(error as Error).message || "Couldn't load your GitHub repositories"}</span>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="text-slate-300 hover:text-white underline shrink-0"
+            >
+              Retry
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
+          <p className="p-4 text-sm text-slate-400">
+            {q ? "No repositories match your search." : "No repositories found on your GitHub account."}
+          </p>
+        ) : (
+          filtered.map((repo) => {
+            const isImported = imported.has(repo.full_name.toLowerCase());
+            const isPending = pendingUrl === repo.url;
+            return (
+              <button
+                key={repo.full_name}
+                type="button"
+                onClick={() => onPick(repo)}
+                disabled={isImported || !!pendingUrl}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-2 transition-colors disabled:cursor-not-allowed disabled:hover:bg-transparent"
+              >
+                {repo.is_private ? (
+                  <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                ) : (
+                  <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm truncate ${isImported ? "text-slate-500" : "text-white"}`}>{repo.full_name}</p>
+                  {repo.description && <p className="text-xs text-slate-500 truncate">{repo.description}</p>}
+                </div>
+                {repo.language && (
+                  <span className="text-xs px-2 py-0.5 bg-surface-3 text-slate-400 rounded-full shrink-0">{repo.language}</span>
+                )}
+                <span className="flex items-center gap-1 text-xs text-slate-500 shrink-0">
+                  <Star className="w-3 h-3" />{repo.stars}
+                </span>
+                {isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-brand-400 shrink-0" />
+                ) : isImported ? (
+                  <span className="flex items-center gap-1 text-xs text-emerald-400 shrink-0">
+                    <Check className="w-3 h-3" />Imported
+                  </span>
+                ) : null}
+              </button>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
