@@ -100,3 +100,138 @@ will be kept inside the retriever (Phase 3) and mocked in tests.
   30 minutes. *Trade-off:* a genuinely slow job older than 30 minutes could get a second job
   started next to it. That is safe because re-indexing replaces all chunks in one transaction,
   but it wastes embedding quota. 30 minutes is far longer than a normal index run.
+
+---
+
+## Phase 2 — Indexing pipeline (`backend/app/rag/`)
+
+### What was built
+
+```
+POST /repositories/{id}/index ──► set index_status=indexing, commit ──► BackgroundTask
+                                                                          │
+  GitHub API: HEAD sha == indexed_commit_sha? ── yes ──► done (no clone, no embedding cost)
+                                                                          │ no
+  cloned_repo()  (shared with repo analysis: token in header, symlinks off, temp dir deleted)
+        │
+  walk files ─► should_index_path ─► read (≤ RAG_MAX_FILE_CHARS) ─► should_index_content
+        │
+  redact_secrets ─► chunk_file ─► Chunk(file, start_line, end_line, symbol, language, content)
+        │
+  one transaction:  DELETE old chunks
+                    for each batch of 100: embed (Gemini) ─► INSERT with to_tsvector('simple', …)
+                    UPDATE repositories SET index_status=indexed, chunk_count, indexed_commit_sha
+                    COMMIT
+```
+
+| File | Job |
+|---|---|
+| `sanitize.py` | Which files may be indexed, and secret redaction |
+| `chunker.py` | Code-aware chunking with exact line numbers |
+| `embedder.py` | Gemini embedding client (batching, retries, normalisation) |
+| `indexer.py` | The pipeline above, plus the stuck-job rule and search-text builder |
+| `routers/repositories.py` | `POST /repositories/{id}/index` and `GET /repositories/{id}/index-status` |
+
+`repository_service.py` was changed minimally. Its clone code moved into an async context manager,
+`cloned_repo()`, so analysis and indexing share the same safe clone instead of having two copies.
+A small `fetch_head_sha()` asks GitHub for the default branch's latest commit.
+
+### Chunking — why "code-aware"
+
+Retrieval returns chunks, and the LLM answers from them. If a chunk is half a function, the answer
+is built on half the facts. So we split along the code's own structure:
+
+- **Python** uses the standard library's `ast` module. It gives exact `lineno`/`end_lineno` for every
+  top-level function and class, so a function is never cut in half. Decorators are included. Big
+  classes (over ~1200 tokens) are split into one chunk per method (`Service.run`). The code *between*
+  definitions (module docstring, imports, constants, `app = FastAPI()`) becomes its own chunk, so
+  every line of the file is in some chunk.
+- **JS/TS** uses no parser (we didn't want a new dependency). A top-level declaration
+  (`function`, `class`, `const x =`, `interface`, `type`, `export default`) starts at column 0, and
+  a chunk runs until the next one starts. The JSDoc/comment lines directly above a declaration are
+  pulled into it. *Limits:* this depends on conventional formatting (Prettier output). A line at
+  column 0 inside a multi-line template string could be taken for a declaration, and nested
+  functions stay inside their parent. We deliberately avoided brace counting, because braces
+  inside strings, regexes and JSX break it in subtle ways.
+- **Everything else**, and any symbol that is too big, uses a **sliding window**: ~400 tokens per
+  chunk with ~50 tokens of overlap, always cut at line boundaries. The overlap means a sentence or
+  statement that falls on a boundary still appears whole in at least one chunk.
+- **Header.** The text that gets embedded is prefixed with
+  `File: <path> | Symbol: <name> | Language: <lang>`. A function body alone often doesn't say what
+  it's about. The path and name (`services/auth_service.py`, `get_github_token`) carry much of the
+  meaning a question will match.
+- **Tokens are estimated as characters ÷ 4** (no tokenizer dependency). `gemini-embedding-001`
+  accepts 2048 tokens, and our largest chunk targets ~1200, which leaves headroom for the estimate
+  being off.
+
+### Embeddings — `embedder.py`
+
+- `gemini-embedding-001`, `output_dimensionality=768`.
+- **Two task types.** Chunks are embedded as `RETRIEVAL_DOCUMENT`; questions (Phase 3) as
+  `CODE_RETRIEVAL_QUERY`. Gemini trains these as a pair: a natural-language question and the code
+  that answers it land close together, even though they share few words.
+- **Normalised to length 1.** Per the Gemini docs, only the full 3072-dimension output is already
+  normalised. A truncated 768 vector isn't, so we divide by its length ourselves.
+- **Batches of 100, sent one after another,** with tenacity retrying rate limits (HTTP 429) and
+  server errors (5xx): up to 6 attempts with exponential backoff (4 s → 60 s). Bad requests (4xx)
+  are not retried, because retrying won't fix them.
+- **No fallback to OpenAI/Claude.** Different models produce vectors in different "spaces", so a
+  question embedded by model B can't be compared with chunks embedded by model A. A silent fallback
+  would make search return nonsense with no error. Failing loudly is better: the job is marked
+  `failed`, and the user can retry.
+- Google has since released `gemini-embedding-2` (auto-normalised, 8k-token input, task given as a
+  prompt prefix instead of `task_type`). Moving to it would mean re-indexing every repo. That's
+  possible later; `001` was the fixed decision for this project.
+
+### Security
+
+- **Never read:** `.env*`, `id_rsa*`, key/cert files (`.pem .key .p12 .pfx .crt …`), lock files,
+  `*.min.*`, source maps, anything in `SKIP_DIRS` (`node_modules`, `.git`, `dist`…), files over
+  `RAG_MAX_FILE_CHARS`, binaries (contain a NUL byte), and minified files (any line over 1000
+  characters).
+- **Allow-list, not deny-list,** for everything else: only known code/doc/config extensions are
+  indexed (the existing analysis list plus Markdown, YAML, TOML, JSON, SQL, shell, Dockerfile,
+  Makefile).
+- **Redaction** runs before chunking. Whatever is stored, embedded or later sent to the chat LLM has
+  already been cleaned. It catches PEM private-key blocks, AWS/GitHub/Google/OpenAI/Anthropic/
+  Stripe/Slack token formats, JWTs, credentials inside URLs, and quoted values assigned to names
+  like `password`, `secret`, `token` or `api_key`. Calls like `get_password()` aren't touched.
+  **Redaction keeps the number of lines the same,** so citations still point at the right lines.
+- Reading reuses `_read_sample()` (rejects symlinks and anything outside the clone), and cloning
+  reuses the existing safe clone.
+- Background-job errors: only our own `AppException` messages are saved to `index_error` and shown
+  in the UI. Anything else becomes a generic message, so internals don't leak.
+
+### Full-text search text
+
+Postgres' `to_tsvector('simple', …)` lowercases and splits on punctuation, but
+`getGithubToken` stays one word, and a path like `lib/api/client.ts` is kept as one "file" token.
+So before indexing we append identifiers split on camelCase/snake_case (`get github token`) and
+the path's parts (`lib api client ts`). Then a question that says "github token" matches the
+function `getGithubToken`.
+We use `simple`, not `english`: the English configuration stems words and drops stop words, which
+mangles code identifiers.
+
+### Transactions and memory
+
+- **Delete + insert + status update happen in one transaction.** If embedding fails halfway, the
+  rollback leaves the previous index untouched, and readers keep seeing the old chunks until the
+  commit. A retry is always safe.
+- **Embed and insert batch by batch,** so only ~100 vectors (≈ 2.5 MB as Python floats) are in memory
+  at once instead of all of them. This matters on Render's 512 MB instance. *Trade-off:* the
+  transaction stays open while Gemini is called, which can take a few minutes for a large repo.
+  That's acceptable here because only that repo's chunk rows are locked.
+- **Skip unchanged repos** with one GitHub API call (`HEAD sha == indexed_commit_sha`), before any
+  clone or embedding cost.
+- `RAG_MAX_CHUNKS_PER_REPO` (default 3000) caps cost and memory. *Shortcut:* files are walked in
+  alphabetical order, so the cap drops whatever comes last. Ranking files (source before tests)
+  would be better if real repos hit the cap.
+- `content_hash` is stored for a future improvement: incremental re-indexing that only re-embeds
+  chunks whose content changed. Today every re-index embeds everything again.
+
+### Known limits
+
+- Only the default branch is indexed.
+- Notebooks, and languages other than Python/JS/TS, use window chunking (no symbol names).
+- Indexing runs in FastAPI `BackgroundTasks` inside the web process. A restart kills it; the
+  30-minute rule and the safe retry handle that. A real job queue would be the next step at scale.

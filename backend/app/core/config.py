@@ -88,6 +88,12 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4o-mini"
     CLAUDE_MODEL: str = "claude-haiku-4-5"
 
+    # ── RAG chat (see docs/RAG.md) ─────────────────────────────────────────────
+    # Gemini only — embeddings never fall back to another provider (vectors aren't comparable).
+    EMBEDDING_MODEL: str = "gemini-embedding-001"
+    RAG_MAX_FILE_CHARS: int = 100_000      # larger files are skipped (usually generated)
+    RAG_MAX_CHUNKS_PER_REPO: int = 3_000   # caps embedding cost and memory per index run
+
     # ── JWT ────────────────────────────────────────────────────────────────────
     JWT_SECRET_KEY: str = _DEFAULT_JWT_SECRET
     JWT_ALGORITHM: str = "HS256"

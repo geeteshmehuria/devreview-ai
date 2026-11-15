@@ -31,6 +31,11 @@ class AIProviderError(AppException):
     detail = "AI provider is currently unavailable"
 
 
+class EmbeddingError(AppException):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    detail = "Embedding service is currently unavailable"
+
+
 class GitHubError(AppException):
     status_code = status.HTTP_502_BAD_GATEWAY
     detail = "Failed to communicate with GitHub"

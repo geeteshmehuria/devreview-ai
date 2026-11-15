@@ -2,14 +2,15 @@
 CodeChunk — one searchable piece of a repository (a function, class or text window), used by RAG chat.
 
 `embedding` (pgvector) and `search_text` (tsvector) only exist on PostgreSQL. On SQLite, used by
-the tests, they fall back to Text so Base.metadata.create_all keeps working (same idea as JSONType).
+the tests, they fall back to JSON / Text so Base.metadata.create_all keeps working (same idea as
+JSONType) and a list of floats still round-trips.
 """
 
 import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -20,7 +21,7 @@ from app.models.base import UUIDMixin
 # 768 keeps us under pgvector's 2000-dimension limit for HNSW indexes.
 EMBEDDING_DIM = 768
 
-VectorType = Text().with_variant(Vector(EMBEDDING_DIM), "postgresql")
+VectorType = JSON().with_variant(Vector(EMBEDDING_DIM), "postgresql")
 TSVectorType = Text().with_variant(TSVECTOR(), "postgresql")
 
 

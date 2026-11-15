@@ -1,4 +1,4 @@
-"""The RAG tables must build and round-trip on SQLite, where vector/tsvector fall back to Text."""
+"""The RAG tables must build and round-trip on SQLite, where vector/tsvector fall back to JSON/Text."""
 
 import uuid
 
@@ -27,7 +27,7 @@ async def test_rag_models_round_trip_on_sqlite(db_session):
     db_session.add(CodeChunk(
         repository_id=repo.id, file_path="app/x.py", start_line=1, end_line=3, symbol_name="f",
         language="python", content="def f(): pass", content_hash="0" * 64, commit_sha="a" * 40,
-        embedding="[0.1]", search_text="def f pass",  # Text fallback on SQLite
+        embedding=[0.1, 0.2], search_text="def f pass",  # JSON / Text fallbacks on SQLite
     ))
     session = ChatSession(user_id=user.id, repository_id=repo.id, title="First chat")
     db_session.add(session)
@@ -41,4 +41,5 @@ async def test_rag_models_round_trip_on_sqlite(db_session):
     chunk = (await db_session.execute(select(CodeChunk).where(CodeChunk.repository_id == repo.id))).scalar_one()
     msg = (await db_session.execute(select(ChatMessage).where(ChatMessage.session_id == session.id))).scalar_one()
     assert (chunk.start_line, chunk.end_line) == (1, 3)
+    assert chunk.embedding == [0.1, 0.2]
     assert msg.citations[0]["file_path"] == "app/x.py"
