@@ -235,3 +235,121 @@ mangles code identifiers.
 - Notebooks, and languages other than Python/JS/TS, use window chunking (no symbol names).
 - Indexing runs in FastAPI `BackgroundTasks` inside the web process. A restart kills it; the
   30-minute rule and the safe retry handle that. A real job queue would be the next step at scale.
+
+### Free-tier quota (found while building Phase 3)
+
+The Gemini free tier allows **1000 embedded texts per day** for `gemini-embedding-001`, and every
+text in a batch counts as one request. Indexing this repo (569 chunks) twice in one day used it up.
+That has some consequences:
+
+- One free-tier key can index about **one medium repo per day**, and every chat question also
+  spends one embedding. `RAG_MAX_CHUNKS_PER_REPO = 3000` is only reachable on a paid key.
+- **A daily-quota 429 is not retried.** Per-minute rate limits clear in seconds, so those are still
+  retried with backoff. A per-day limit clears in hours, so the embedder now fails immediately with
+  a clear message ("daily embedding quota is used up…"), which the UI shows as `index_error`.
+- On a paid key the cost is small: this repo is ~118k tokens, a few cents per full index.
+
+---
+
+## Phase 3 — Retrieval (`backend/app/rag/retriever.py`)
+
+### What was built
+
+```
+question ──► embed (CODE_RETRIEVAL_QUERY) ──► vector search:  ORDER BY embedding <=> q  LIMIT 20 ─┐
+        └──► keyword terms ─────────────────► keyword search: search_text @@ tsquery  LIMIT 20 ───┤
+                                                                                                  ▼
+                                                           Reciprocal Rank Fusion (k=60) → top 8 chunks
+        └──► keyword terms ─────────────────► findings search (4 tables, query-time tsvector) → top 3
+                                                                                                  ▼
+                       RetrievalResult(chunks, findings, best_similarity, low_confidence)
+```
+
+### Why hybrid search
+
+The two methods fail in opposite ways:
+
+| Question | Vector search | Keyword search |
+|---|---|---|
+| "How does the app recover when the AI is down?" | ✅ finds `run_review` by meaning, though the words "recover" and "down" aren't in it | ❌ few shared words |
+| "Where is `getGithubToken` used?" | ⚠️ an embedding blurs one exact name into "something about tokens" | ✅ exact identifier match |
+| "What does error `RESOURCE_EXHAUSTED` mean?" | ⚠️ | ✅ |
+
+Hybrid search runs both and merges the results, so each covers the other's blind spot.
+
+### Reciprocal Rank Fusion (RRF)
+
+`score(chunk) = Σ 1 / (60 + rank)` over the two result lists.
+
+- It uses **only positions**, never raw scores. Cosine similarity (0–1) and `ts_rank_cd`
+  (unbounded) are on different scales, and RRF lets us combine them without inventing a
+  normalisation or tuning weights.
+- A chunk found by **both** methods gets two contributions and rises to the top. Agreement is a
+  strong relevance signal.
+- `k = 60` is the standard value from the original RRF paper. A bigger k flattens the difference
+  between rank 1 and rank 5, so one list can't dominate just by putting something first.
+
+### Keyword query: OR, not AND
+
+`plainto_tsquery` ANDs every word, so "Where is GitHub OAuth handled?" would need a chunk containing
+"where", "github", "oauth" *and* "handled". Almost nothing matches. Instead we:
+
+1. drop question words ("where", "how", "does", "the"…);
+2. keep identifiers whole *and* split (`getGithubToken` → `getgithubtoken | get | github | token`),
+   matching how the index was built in Phase 2;
+3. join them with `|` (OR) and rank with `ts_rank_cd`, which still puts chunks that match *more*
+   terms, *closer together*, first.
+
+Terms are restricted to `[a-z0-9]`, so a question can't inject tsquery operators, and they're
+passed as a bound parameter anyway.
+
+### Findings as context
+
+Saved review findings (security, performance, code smells, technical debt) are full-text searched
+for the same repository, and the top 3 come back as separate "finding" items. Then the chat can
+answer things like *"are there known security problems in the auth code?"* from DevReview's own
+earlier analysis. The `tsvector` is computed at query time, with no changes to the old tables (see
+the Phase 1 decision). Duplicates from repeated analyses of the same repo are removed.
+*Trade-off:* findings are only keyword-searched, not embedded, and their line numbers come from the
+review, not from the indexed commit, so they may be slightly off.
+
+### Low confidence
+
+If the best **vector** similarity is below `RAG_MIN_SIMILARITY`, the result is marked
+`low_confidence`. Phase 4 uses that to make the answer say clearly that the repository may not
+contain the answer. Only the vector side counts, because a keyword match on a common word proves
+nothing. The default (0.5) is a starting point. The eval prints the best similarity for on-topic
+and deliberately off-topic questions, so the threshold can be set from data.
+
+### Security
+
+Every query joins `repositories` and filters `owner_id = :user`. Even if a future caller forgets
+its own ownership check, retrieval can't return another user's chunks or findings. Checked against
+real Postgres: a different user ID gets 0 results from both searches.
+
+### HNSW and filtering — what really happens
+
+With 569 rows, `EXPLAIN` shows Postgres choosing a **sequential scan + sort** (exact search) rather
+than the HNSW index, because reading 569 rows is cheaper. As the table grows (many repos), the planner
+switches to HNSW. Then a known pgvector caveat applies: the index finds the nearest ~40 vectors
+(`hnsw.ef_search`) *across all repos* and the `WHERE repository_id = …` filter runs afterwards, so a
+small repo among many big ones can get fewer than 20 results. Fixes, in order of effort: raise
+`hnsw.ef_search`, use pgvector 0.8's `SET hnsw.iterative_scan = relaxed_order`, or partition
+`code_chunks` by repository.
+
+### Evaluation
+
+`backend/app/rag/eval/devreview_questions.json` has 15 questions about this repo, each with its
+expected file(s). `python -m app.rag.eval.run_eval --repo-name <owner/repo>` reports per question the
+rank of the first chunk from an expected file, then:
+
+- **hit@5**: share of questions where an expected file is in the top 5;
+- **MRR** (mean reciprocal rank): the average of 1/rank (0 when missed). Rank 1 scores 1.0, rank 4
+  scores 0.25, so MRR rewards putting the answer *first*, not just somewhere in the top 5.
+
+It runs **vector-only** and **hybrid** on the same questions, embedding each question only once.
+The eval folder itself is excluded from ranking, because its JSON pairs every question with its
+answer file and would leak the answers.
+
+**Results:** *pending — the free-tier daily embedding quota ran out during this phase (see above).
+They'll be added here when the quota resets.*

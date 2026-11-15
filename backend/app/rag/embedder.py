@@ -25,6 +25,12 @@ DOCUMENT_TASK = "RETRIEVAL_DOCUMENT"
 QUERY_TASK = "CODE_RETRIEVAL_QUERY"  # Gemini's task type for natural-language → code search
 
 
+def _is_daily_quota(exc: errors.APIError) -> bool:
+    # Free tier: 1000 embedded texts per day per model. A per-minute 429 clears in seconds;
+    # a per-day one doesn't clear for hours, so retrying it only wastes time.
+    return exc.code == 429 and "PerDay" in str(exc)
+
+
 def _is_retryable(exc: BaseException) -> bool:
     """Rate limits (429) and server errors are worth retrying; bad requests are not."""
     if isinstance(exc, errors.APIError):
@@ -65,11 +71,18 @@ class GeminiEmbedder:
         reraise=True,
     )
     async def _embed_batch(self, texts: list[str], task_type: str) -> list[list[float]]:
-        response = await self._client.aio.models.embed_content(
-            model=self.model,
-            contents=texts,
-            config=types.EmbedContentConfig(task_type=task_type, output_dimensionality=EMBEDDING_DIM),
-        )
+        try:
+            response = await self._client.aio.models.embed_content(
+                model=self.model,
+                contents=texts,
+                config=types.EmbedContentConfig(task_type=task_type, output_dimensionality=EMBEDDING_DIM),
+            )
+        except errors.APIError as e:
+            if _is_daily_quota(e):  # EmbeddingError isn't retryable, so this stops tenacity immediately
+                raise EmbeddingError(
+                    "Gemini's daily embedding quota is used up. Try again after it resets (midnight Pacific time)."
+                ) from e
+            raise
         embeddings = response.embeddings or []
         if len(embeddings) != len(texts) or any(len(e.values or []) != EMBEDDING_DIM for e in embeddings):
             raise EmbeddingError("Embedding response did not match the request")

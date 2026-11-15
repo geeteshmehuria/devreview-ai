@@ -70,6 +70,11 @@ _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]{2,}")
 _WORD = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 
 
+def split_identifier(ident: str) -> list[str]:
+    """getGithubToken / get_github_token / HTTPServer → ['get','github','token'] / ['http','server']."""
+    return [w.lower() for piece in ident.split("_") for w in _WORD.findall(piece)]
+
+
 def search_text_for(chunk: Chunk) -> str:
     """
     Source text for the tsvector. Postgres' `simple` config lowercases words but keeps
@@ -79,7 +84,7 @@ def search_text_for(chunk: Chunk) -> str:
     # Postgres parses "lib/api/client.ts" as one file-path token, so add its parts as plain words.
     words: set[str] = {w.lower() for w in re.split(r"[/._\-]+", chunk.file_path) if len(w) > 1}
     for ident in _IDENT.findall(f"{chunk.file_path} {chunk.symbol_name or ''} {chunk.content}"):
-        parts = [w.lower() for piece in ident.split("_") for w in _WORD.findall(piece)]
+        parts = split_identifier(ident)
         if len(parts) > 1:
             words.update(parts)
     return f"{chunk.file_path} {chunk.symbol_name or ''}\n{chunk.content}\n{' '.join(sorted(words))}"
