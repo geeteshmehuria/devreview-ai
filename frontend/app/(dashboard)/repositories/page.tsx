@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { GitBranch, Plus, Star, GitFork, Lock, Globe, Loader2, RefreshCw, Trash2, Search, Check } from "lucide-react";
+import { GitBranch, Plus, Star, GitFork, Lock, Globe, Loader2, RefreshCw, Trash2, Search, Check, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { repositoriesApi } from "@/lib/api/repositories";
@@ -308,6 +308,14 @@ function RepoCard({ repo, onAnalyze, onDelete, isAnalyzing }: {
               {Math.round(score)}/100
             </div>
           )}
+          <Link
+            href={`/repositories/${repo.id}`}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-slate-300 hover:text-white bg-surface-3 hover:bg-brand-700/30 transition-colors"
+            aria-label={`Chat with ${repo.full_name}`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            Chat
+          </Link>
           <button
             onClick={onAnalyze}
             disabled={isAnalyzing || repo.status === "analyzing"}

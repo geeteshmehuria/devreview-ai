@@ -532,3 +532,85 @@ and `X-Accel-Buffering: no` for proxies.
   asks again.
 - Token counts are stored per message, but there is no per-user budget yet. Only the rate limit
   caps spending.
+
+---
+
+## Phase 5 — Frontend
+
+### What was built
+
+| File | Job |
+|---|---|
+| `app/(dashboard)/repositories/[id]/page.tsx` | Repo detail page: repo info, **Chat** and **Overview** tabs |
+| `components/chat/index-status-panel.tsx` | Index button, status badge, chunk count, commit, error; polls while indexing |
+| `components/chat/repo-chat.tsx` | Conversation list (new / select / delete), messages, streaming, example questions |
+| `components/chat/chat-message.tsx` | One message: Markdown (`react-markdown` + GFM), citation chips, not-found / low-confidence / error states |
+| `components/chat/citation-chip.tsx` | `[n] path:L10-L42` chip that opens the SHA-pinned GitHub link in a new tab |
+| `lib/api/chat.ts` | Session/message calls (axios) + `parseSSE` + `streamChatMessage` (fetch) |
+| `lib/api/client.ts` | `refreshAccessToken()` and `handleAuthFailure()` exported, so the stream reuses them |
+| `app/(dashboard)/repositories/page.tsx` | A **Chat** link on every repo card |
+
+### Why `fetch` for streaming (the one exception to "always use axios")
+
+- **axios** in the browser uses `XMLHttpRequest`, which gives you the whole body at the end. No
+  token-by-token reading.
+- **`EventSource`** (the browser's built-in SSE client) only does GET and can't set headers, so
+  it can't send the question in a POST body or the `Authorization: Bearer` token.
+- **`fetch`** exposes `response.body` as a `ReadableStream`. We read chunks with
+  `getReader()`, decode them with `TextDecoder({ stream: true })` (which also handles a multi-byte
+  character split across chunks), and parse SSE ourselves.
+
+`parseSSE(buffer)` returns the complete events plus the unfinished tail. Network chunks don't line
+up with event boundaries, so the tail is carried into the next read. This is tested with an
+event deliberately split mid-JSON.
+
+Auth stays consistent with the rest of the app: on a 401 the helper calls the same
+`refreshAccessToken()` the axios interceptor uses, retries once, and signs the user out if the
+refresh fails. Concurrent refreshes share one request (`refreshInFlight`), so the interceptor
+and a chat stream can't both rotate the refresh token at the same time. (The backend stores only
+one refresh-token hash, so a double refresh would sign the user out.)
+
+### UI behaviour
+
+- **Index panel** reuses the repositories page's polling pattern: TanStack Query
+  `refetchInterval` returns 3 s while `index_status === "indexing"`, and `false` otherwise, so the
+  page doesn't poll forever.
+- **Chat is enabled once `indexed_commit_sha` is set**, not only when the status is `indexed`.
+  During a re-index (or after a failed one) the previous index still answers, matching the backend.
+- **Streaming state.** The question being answered lives in local state (`pending`) and grows with
+  each `token`. On `done`, the saved messages are refetched *first*, then `pending` is cleared, so
+  nothing flickers. Switching conversation or leaving the page aborts the request
+  (`AbortController`).
+- **Citations** appear as chips under each answer; review findings have their own orange style.
+- **Not found** (the answer starts with the backend's exact not-found sentence) gets an amber
+  frame. **Low confidence** shows a warning line. Errors (quota, provider failure, 409 not indexed)
+  show a red box under the answer.
+- **Empty conversation** shows 4 example questions that send on click.
+- Markdown links from the model open in a new tab with `rel="noopener noreferrer"`.
+  react-markdown blocks `javascript:` URLs by default.
+
+### Tests (Vitest)
+
+- `tests/chat-sse.test.ts`: `parseSSE` (complete + partial events, CRLF, multi-line `data:`,
+  newlines inside JSON tokens, malformed events and heartbeats skipped), and `streamChatMessage`
+  with a fake `ReadableStream` (event split across chunks, refresh-and-retry on 401, sign-out when
+  refresh fails, JSON `detail` for 409, `error` events).
+- `tests/citation-chip.test.tsx`: label format, single-line ranges, link attributes, findings
+  without a URL.
+
+### Checked in a real browser
+
+Next.js dev server + the real backend, signed in as the local eval user via a short-lived access
+token: the repo card's **Chat** link, the index panel (Indexed · 569 chunks · `d62901d`), the
+saved conversation with chips linking to `/blob/<sha>/…#L1-L10`, and a **live** question from the
+example buttons. "Searching the code…" turned into streamed text and finished with 7 citation
+chips (`config.py`, `database.py`, `DEPLOYMENT.md`, `render.yaml`, `docker-compose.yml`, …).
+Redacted values showed as `[REDACTED]`.
+
+### Limits
+
+- `low_confidence` isn't stored with the message, so the warning shows only while the answer is
+  fresh. "Not found" is detected from the text, so it survives a reload. Storing the flag would need
+  a column.
+- A failed answer keeps the question on screen with the error but isn't saved; the user asks again.
+- No "stop generating" button. Leaving the conversation aborts the request.
