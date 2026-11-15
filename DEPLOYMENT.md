@@ -46,6 +46,24 @@ Render's free Postgres is deleted 30 days after creation, so the database lives 
 
 Tables are created by `alembic upgrade head` on the API's next boot.
 
+### pgvector (repo chat)
+
+Repo chat stores code embeddings in a `vector(768)` column, which needs the
+[pgvector](https://github.com/pgvector/pgvector) extension. Neon includes it. The
+migration `b4d8f2a61c93` runs `CREATE EXTENSION IF NOT EXISTS vector` itself, and
+Neon's default project owner role is allowed to do that, so normally there is
+nothing to do.
+
+If the boot log shows `permission denied to create extension "vector"` (for example
+with a restricted role), open Neon's **SQL Editor** once and run:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+then redeploy. Check with `SELECT extversion FROM pg_extension WHERE extname = 'vector';`.
+The schema uses an HNSW index, which needs pgvector ≥ 0.5 (Neon ships newer).
+
 ## 2. Backend on Render
 
 The repo ships a **Render Blueprint** (`render.yaml`) that provisions two
@@ -81,6 +99,34 @@ Notes:
 - Repository analysis runs in-process as a FastAPI background task (it clones
   the repo into a temp dir), so a free instance's 512 MB limits repo size.
 - uvicorn runs with `--proxy-headers` so the rate limiter sees real client IPs.
+
+### Render free tier and repo chat indexing
+
+Indexing for repo chat (`POST /repositories/{id}/index`) also runs as an in-process
+background task. On the free plan:
+
+- **512 MB RAM.** Indexing embeds and inserts chunks in batches of 100, so only
+  ~100 vectors are in memory at a time. `RAG_MAX_CHUNKS_PER_REPO` (default 3000) and
+  `RAG_MAX_FILE_CHARS` (default 100000) cap the work per repo. Lower them if the
+  service gets OOM-killed on very large repos.
+- **The service sleeps when idle** (~15 min). A sleeping service isn't indexing
+  anything, and the first request after waking is slow.
+- **A restart or redeploy kills a running indexing job.** That's safe:
+  - the job replaces a repo's chunks in **one transaction**, so a killed job leaves
+    the previous index untouched and chat keeps working on it;
+  - a repo stuck in `indexing` for **30 minutes** is treated as dead, and the
+    **Re-index** button works again;
+  - re-indexing an unchanged repo is skipped (one GitHub API call compares the latest
+    commit SHA), so retrying costs nothing.
+- **Gemini free tier: 1000 embedded texts per day.** One chunk = one text, and each
+  chat question costs one more. A medium repo (~600 chunks) uses most of a day's
+  quota. When it runs out, indexing fails fast with "Gemini's daily embedding quota
+  is used up" (shown in the UI), and chat questions fail the same way until the quota
+  comes back. A paid Gemini key removes this limit; a full index of a medium repo
+  costs a few cents.
+- `GEMINI_API_KEY` is **required** for repo chat even if OpenAI/Claude are configured.
+  Embeddings never fall back to another provider (vectors from different models can't
+  be compared). Chat *answers* do use the normal Gemini → OpenAI → Claude fallback.
 
 ## 3. Frontend on Vercel
 
@@ -135,6 +181,17 @@ Both Render and Vercel redeploy automatically on push to `main` once connected.
 | `AI_PRIMARY_PROVIDER` | `gemini` | |
 | `GEMINI_MODEL` / `OPENAI_MODEL` / `CLAUDE_MODEL` | optional | override default model ids |
 
+Repo chat (RAG) — all optional, defaults shown:
+
+| Variable | Default | Notes |
+|---|---|---|
+| `EMBEDDING_MODEL` | `gemini-embedding-001` | Gemini only; changing it means re-indexing every repo |
+| `EMBEDDING_DIM` | `768` | fixed by the `vector(768)` column; other values are rejected at boot |
+| `RAG_TOP_K` | `8` | code chunks put in the prompt per question |
+| `RAG_MIN_SIMILARITY` | `0.70` | best cosine similarity below this → "low confidence" |
+| `RAG_MAX_FILE_CHARS` | `100000` | larger files are skipped |
+| `RAG_MAX_CHUNKS_PER_REPO` | `3000` | caps embedding cost and memory per index run |
+
 ### Frontend (Vercel)
 
 | Variable | Notes |
@@ -165,6 +222,16 @@ Both Render and Vercel redeploy automatically on push to `main` once connected.
   normalized — you're on an old `config.py`; pull latest.
 - **First request very slow**: free Render service cold start. Upgrade the plan.
 - **Docs page 404 in prod**: intended — `/api/docs` is disabled when `DEBUG=false`.
+- **`type "vector" does not exist`** / **`permission denied to create extension`**:
+  enable pgvector on Neon (see "pgvector (repo chat)" above), then redeploy.
+- **Index status "Failed: Gemini's daily embedding quota is used up"**: free-tier
+  limit (1000 texts/day). Retry later or use a paid key; the previous index keeps working.
+- **Chat says "This repository isn't indexed yet"**: press **Index repository** on the
+  repo's Chat tab and wait for the status to turn "Indexed".
+- **Chat answer arrives all at once instead of word by word**: a proxy is buffering
+  the `text/event-stream` response. The API already sends `Cache-Control: no-cache`,
+  `X-Accel-Buffering: no` and `Content-Encoding: identity`; check for any extra proxy
+  or CDN in front of Render.
 
 ## Production checklist
 
@@ -175,3 +242,5 @@ Both Render and Vercel redeploy automatically on push to `main` once connected.
 - [ ] `GITHUB_CALLBACK_URL` == OAuth app callback == `<frontend>/callback`
 - [ ] Login → dashboard works end to end
 - [ ] `DEBUG=false`, `APP_ENV=production` on the backend
+- [ ] pgvector enabled on Neon (`SELECT extversion FROM pg_extension WHERE extname = 'vector';`)
+- [ ] A repo indexes successfully and chat answers with working citation links

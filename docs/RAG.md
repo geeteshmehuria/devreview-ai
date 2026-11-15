@@ -614,3 +614,35 @@ Redacted values showed as `[REDACTED]`.
   a column.
 - A failed answer keeps the question on screen with the error but isn't saved; the user asks again.
 - No "stop generating" button. Leaving the conversation aborts the request.
+
+---
+
+## Phase 6 — Settings, deployment, docs
+
+### Settings (`app/core/config.py`, `.env.example`, DEPLOYMENT.md)
+
+| Setting | Default | Why this default |
+|---|---|---|
+| `EMBEDDING_MODEL` | `gemini-embedding-001` | fixed design decision; changing it means re-indexing everything |
+| `EMBEDDING_DIM` | `768` | typed `Literal[768]`: the `vector(768)` column can't change without a migration, so a wrong value fails **at startup**, not on the first insert |
+| `RAG_TOP_K` | `8` | enough context for cross-file answers, small enough to keep prompts cheap |
+| `RAG_MIN_SIMILARITY` | `0.70` | measured: off-topic ≈ 0.65, weakest on-topic 0.75 (Phase 3) |
+| `RAG_MAX_FILE_CHARS` | `100000` | bigger files are almost always generated |
+| `RAG_MAX_CHUNKS_PER_REPO` | `3000` | caps cost/memory; note the free tier embeds only 1000 texts/day |
+
+### Deployment notes (details in DEPLOYMENT.md)
+
+- **Neon**: pgvector is available; the migration creates the extension itself. There's a manual
+  SQL fallback for restricted roles.
+- **Render free tier**: 512 MB RAM (batches of 100 keep memory flat), sleeps when idle, and a
+  restart kills a running index job. That's safe because of the single-transaction replace, the
+  30-minute stuck rule, and the "same commit → skip" check.
+- **Privacy note in README updated**: indexed repos now *store* redacted code chunks and send them
+  to the AI providers. The README used to say cloned code is never stored.
+
+### Final state
+
+- Backend: 115 pytest tests (73 of them new for RAG) on SQLite with AI/Redis/GitHub mocked;
+  Postgres-only SQL checked against a real pgvector database.
+- Frontend: 38 Vitest tests (15 new), `tsc --noEmit` and `next lint` clean.
+- Real end-to-end chats through the running backend, in the API and in the browser.

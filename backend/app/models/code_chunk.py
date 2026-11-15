@@ -14,12 +14,13 @@ from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text,
 from sqlalchemy.dialects.postgresql import TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.config import get_settings
 from app.core.database import Base
 from app.models.base import UUIDMixin
 
 # Baked into the column type: changing it needs a new migration and a full re-index.
 # 768 keeps us under pgvector's 2000-dimension limit for HNSW indexes.
-EMBEDDING_DIM = 768
+EMBEDDING_DIM = get_settings().EMBEDDING_DIM
 
 VectorType = JSON().with_variant(Vector(EMBEDDING_DIM), "postgresql")
 TSVectorType = Text().with_variant(TSVECTOR(), "postgresql")

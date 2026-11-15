@@ -3,7 +3,10 @@
 import uuid
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import select
+
+from app.core.config import Settings
 
 from app.models import ChatMessage, ChatSession, CodeChunk, Repository, User
 from app.models.repository import IndexStatus
@@ -43,3 +46,9 @@ async def test_rag_models_round_trip_on_sqlite(db_session):
     assert (chunk.start_line, chunk.end_line) == (1, 3)
     assert chunk.embedding == [0.1, 0.2]
     assert msg.citations[0]["file_path"] == "app/x.py"
+
+
+def test_embedding_dim_must_match_the_vector_column():
+    # The column is vector(768); any other size must fail at startup, not on the first insert.
+    with pytest.raises(ValidationError):
+        Settings(EMBEDDING_DIM=1536)
