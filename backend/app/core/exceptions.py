@@ -31,6 +31,11 @@ class AIProviderError(AppException):
     detail = "AI provider is currently unavailable"
 
 
+class RepositoryNotIndexedError(AppException):
+    status_code = status.HTTP_409_CONFLICT
+    detail = "This repository isn't indexed yet. Index it first, then start chatting."
+
+
 class EmbeddingError(AppException):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     detail = "Embedding service is currently unavailable"
