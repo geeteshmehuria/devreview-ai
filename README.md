@@ -414,17 +414,6 @@ Cloning and analysing a repository takes 30–120 seconds. FastAPI's `Background
 
 ---
 
-## Roadmap
-
-- [ ] Inline PR comments posted back to GitHub via the Checks API
-- [ ] Team workspaces with shared review history
-- [ ] Custom review rulesets (per-language severity thresholds)
-- [ ] Webhook-triggered automatic PR reviews
-- [ ] SARIF export for CI integration
-- [ ] Mark technical-debt items as resolved
-
----
-
 ## Contributing
 
 Contributions are welcome. Fork the repo, create a feature branch, and open a pull request:
