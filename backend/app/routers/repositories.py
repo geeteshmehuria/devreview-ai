@@ -10,13 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import AsyncSessionLocal, get_db
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AppException, NotFoundError
 from app.core.rate_limit import AI_LIMIT, limiter
 from app.core.redis import get_redis_pool
 from app.middleware.auth import get_current_user
-from app.models.repository import Repository, RepositoryStatus
+from app.models.repository import IndexStatus, Repository, RepositoryStatus
 from app.models.user import User
-from app.schemas.repository import GitHubRepoOut, RepositoryDetailOut, RepositoryOut
+from app.rag.indexer import can_start_indexing, index_repository
+from app.schemas.repository import GitHubRepoOut, IndexStatusOut, RepositoryDetailOut, RepositoryOut
 from app.schemas.review import RepoAnalysisRequest
 from app.services.repository_service import analyze_repository, import_repository, list_user_repos
 
@@ -89,6 +90,34 @@ async def trigger_analysis(
     return _repo_to_out(repo)
 
 
+@router.post("/{repo_id}/index", response_model=IndexStatusOut)
+@limiter.limit(AI_LIMIT)
+async def start_indexing(
+    request: Request,
+    repo_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Build the RAG index for chat. Returns the current state if a run is already in progress."""
+    repo = await _get_owned_repo(db, repo_id, current_user)
+    if can_start_indexing(repo):
+        repo.index_status = IndexStatus.INDEXING
+        repo.index_error = None
+        await db.commit()  # visible to the UI and to the background task's own session
+        background_tasks.add_task(_run_indexing_background, repo.id, current_user.id)
+    return repo
+
+
+@router.get("/{repo_id}/index-status", response_model=IndexStatusOut)
+async def get_index_status(
+    repo_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await _get_owned_repo(db, repo_id, current_user)
+
+
 @router.delete("/{repo_id}", status_code=204)
 async def delete_repository(
     repo_id: uuid.UUID,
@@ -129,6 +158,25 @@ async def _run_analysis_background(repo_id: uuid.UUID, user_id: uuid.UUID, force
             await session.commit()
         finally:
             await redis.aclose()
+
+
+async def _run_indexing_background(repo_id: uuid.UUID, user_id: uuid.UUID):
+    """Background task — owns its DB session. Safe to retry: a failed run leaves the old index intact."""
+    async with AsyncSessionLocal() as session:
+        try:
+            await index_repository(session, repo_id, user_id)
+            await session.commit()
+        except Exception as e:
+            logger.error("bg_indexing_failed", repo_id=str(repo_id), error=str(e))
+            await session.rollback()
+            # Only our own exception messages reach the UI; anything else could leak internals.
+            message = e.detail if isinstance(e, AppException) else "Indexing failed unexpectedly. Please try again."
+            await session.execute(
+                update(Repository)
+                .where(Repository.id == repo_id)
+                .values(index_status=IndexStatus.FAILED, index_error=message[:500])
+            )
+            await session.commit()
 
 
 def _repo_to_out(repo: Repository) -> dict:

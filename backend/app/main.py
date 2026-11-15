@@ -22,7 +22,7 @@ from slowapi.errors import RateLimitExceeded
 from app.core.config import get_settings
 from app.core.exceptions import AppException
 from app.core.rate_limit import limiter
-from app.routers import auth, repositories, reviews, pull_requests
+from app.routers import auth, chat, repositories, reviews, pull_requests
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -111,6 +111,7 @@ app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(repositories.router, prefix=API_PREFIX)
 app.include_router(reviews.router, prefix=API_PREFIX)
 app.include_router(pull_requests.router, prefix=API_PREFIX)
+app.include_router(chat.router, prefix=API_PREFIX)
 
 
 # ── Health check ───────────────────────────────────────────────────────────────

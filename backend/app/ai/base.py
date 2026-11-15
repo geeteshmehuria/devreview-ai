@@ -9,6 +9,7 @@ Design decisions:
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -73,10 +74,26 @@ class ReviewResponse:
     raw_response: Any = None
 
 
+CHAT_MAX_OUTPUT_TOKENS = 2048
+CHAT_TEMPERATURE = 0.2  # low: answers should stick to the provided context
+
+
+@dataclass
+class StreamDelta:
+    """One piece of a streamed chat answer. The last delta carries token usage instead of text."""
+
+    text: str = ""
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    provider: str = ""  # filled in by the factory
+    model: str = ""
+
+
 class AIProvider(ABC):
     """
     Abstract AI provider.
-    Each implementation must translate a ReviewRequest into a ReviewResponse.
+    Each implementation must translate a ReviewRequest into a ReviewResponse,
+    and stream plain-text chat answers.
     """
 
     provider_name: str = "base"
@@ -85,6 +102,14 @@ class AIProvider(ABC):
     @abstractmethod
     async def review(self, request: ReviewRequest) -> ReviewResponse:
         """Run a code review and return a normalised response."""
+        ...
+
+    @abstractmethod
+    def stream_chat(self, system: str, messages: list[dict]) -> AsyncIterator[StreamDelta]:
+        """
+        Stream a chat answer. `messages` are {"role": "user"|"assistant", "content": str},
+        alternating and ending with a user message. Implemented as an async generator.
+        """
         ...
 
     def __repr__(self) -> str:

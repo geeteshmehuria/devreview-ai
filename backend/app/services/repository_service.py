@@ -11,6 +11,8 @@ import re
 import shutil
 import tempfile
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -77,6 +79,19 @@ def _fetch_repo(token: str, full_name: str) -> dict:
         if e.status in (401, 403, 404):
             raise GitHubError("Repository not found or you don't have access to it")
         raise GitHubError("GitHub API error while fetching the repository")
+
+
+def _fetch_head_sha(token: str, full_name: str, branch: str) -> str:
+    """Blocking PyGithub call — run in a worker thread."""
+    try:
+        return Github(auth=Auth.Token(token)).get_repo(full_name, lazy=True).get_branch(branch).commit.sha
+    except GithubException:
+        raise GitHubError("Could not read the repository's latest commit from GitHub")
+
+
+async def fetch_head_sha(user: User, repo: Repository) -> str:
+    """Latest commit SHA on the default branch — lets RAG indexing skip unchanged repos without cloning."""
+    return await asyncio.to_thread(_fetch_head_sha, get_github_token(user), repo.full_name, repo.default_branch)
 
 
 MAX_LISTED_REPOS = 200
@@ -218,10 +233,18 @@ async def analyze_repository(
 
 
 async def _sample_repository(clone_url: str, github_token: str) -> str:
+    """Shallow-clone the repo to a temp dir and sample key files."""
+    async with cloned_repo(clone_url, github_token) as root:
+        return await asyncio.to_thread(_extract_repo_content, str(root))
+
+
+@asynccontextmanager
+async def cloned_repo(clone_url: str, github_token: str) -> AsyncIterator[Path]:
     """
-    Shallow-clone the repo to a temp dir and sample key files.
+    Shallow-clone the repo into a temp dir, yield its resolved path, always delete it afterwards.
     The token is passed as an HTTP header through git's env-based config, so it
     never appears in the clone URL, argv (`ps`) or git's error output.
+    Shared by repository analysis and RAG indexing.
     """
     basic = base64.b64encode(f"x-access-token:{github_token}".encode()).decode()
     env = {
@@ -252,17 +275,17 @@ async def _sample_repository(clone_url: str, github_token: str) -> str:
             logger.warning("git_clone_failed", stderr=stderr.decode(errors="replace")[:500])
             raise GitHubError("Failed to clone repository")
 
-        return await asyncio.to_thread(_extract_repo_content, tmp_dir)
+        yield Path(tmp_dir).resolve()
     finally:
         await asyncio.to_thread(shutil.rmtree, tmp_dir, True)
 
 
-def _read_sample(root: Path, path: Path) -> str | None:
+def _read_sample(root: Path, path: Path, max_chars: int = MAX_FILE_SIZE) -> str | None:
     """Read a file only if it is a regular file inside the clone (never follow symlinks out)."""
     try:
         if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(root):
             return None
-        return path.read_text(errors="replace")[:MAX_FILE_SIZE]
+        return path.read_text(errors="replace")[:max_chars]
     except OSError:
         return None
 

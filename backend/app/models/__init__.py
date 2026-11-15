@@ -11,6 +11,8 @@ from app.models.review import (
     CodeSmell,
     TechnicalDebt,
 )
+from app.models.code_chunk import CodeChunk
+from app.models.chat import ChatMessage, ChatSession
 
 __all__ = [
     "User",
@@ -23,4 +25,7 @@ __all__ = [
     "PerformanceFinding",
     "CodeSmell",
     "TechnicalDebt",
+    "CodeChunk",
+    "ChatSession",
+    "ChatMessage",
 ]
