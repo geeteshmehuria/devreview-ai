@@ -2,7 +2,9 @@
 # Redis (with their default dev passwords) are never reachable from the network.
 services:
   db:
-    image: postgres:16-alpine
+    # Postgres 16 with the pgvector extension (RAG chat embeddings). Debian-based, so an old
+    # postgres:16-alpine volume should be recreated (`make clean`) — collations differ.
+    image: pgvector/pgvector:pg16
     container_name: devreview_db
     restart: unless-stopped
     environment:
