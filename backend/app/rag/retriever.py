@@ -26,13 +26,15 @@ from app.models.code_chunk import EMBEDDING_DIM, CodeChunk
 from app.models.repository import Repository
 from app.models.review import CodeSmell, PerformanceFinding, Review, SecurityFinding, TechnicalDebt
 from app.rag.embedder import GeminiEmbedder
-from app.rag.indexer import split_identifier
 
 settings = get_settings()
 
 CANDIDATES = 20  # per search method, before fusion
 RRF_K = 60       # standard constant from the RRF paper; damps the advantage of rank 1 vs rank 2
 FINDINGS_K = 3
+# ts_rank_cd normalisation flag 1 = divide by 1 + log(document length). Without it, long chunks that
+# mention many common words (migrations, big models, test classes) outrank short, precise ones.
+RANK_LENGTH_NORMALISATION = 1
 
 
 @dataclass
@@ -78,12 +80,16 @@ STOP_WORDS = {
 
 
 def query_terms(question: str) -> list[str]:
-    """Lowercase keywords for the tsquery: identifiers kept whole AND split (getUser → getuser, get, user)."""
+    """
+    Lowercase keywords for the tsquery. Identifiers are NOT camelCase-split here: the index already
+    holds both `getgithubtoken` and `get github token`, and splitting prose ("GitHub" → git, hub)
+    only adds terms that match half the repo. Underscores separate words, as in the index.
+    """
     terms: list[str] = []
-    for ident in re.findall(r"[A-Za-z0-9_]+", question):
-        for term in [ident.lower(), *split_identifier(ident)]:
-            if len(term) > 1 and term not in STOP_WORDS and term not in terms:
-                terms.append(term)
+    for word in re.findall(r"[A-Za-z0-9]+", question):
+        term = word.lower()
+        if len(term) > 1 and term not in STOP_WORDS and term not in terms:
+            terms.append(term)
     return terms
 
 
@@ -122,7 +128,7 @@ async def keyword_search(
     db: AsyncSession, repository_id: uuid.UUID, user_id: uuid.UUID, terms: list[str], limit: int = CANDIDATES
 ) -> list[CodeChunk]:
     tsq = _tsquery(terms)
-    rank = func.ts_rank_cd(CodeChunk.search_text, tsq)
+    rank = func.ts_rank_cd(CodeChunk.search_text, tsq, RANK_LENGTH_NORMALISATION)
     stmt = _owned_chunks(repository_id, user_id).where(CodeChunk.search_text.op("@@")(tsq))
     return list((await db.execute(stmt.order_by(rank.desc()).limit(limit))).scalars().all())
 

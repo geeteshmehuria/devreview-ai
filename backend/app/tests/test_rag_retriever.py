@@ -9,8 +9,10 @@ from app.rag import retriever
 from app.rag.retriever import RetrievedFinding, query_terms, reciprocal_rank_fusion
 
 
-def test_query_terms_drop_stop_words_and_split_identifiers():
-    assert query_terms("Where is getGithubToken used?") == ["getgithubtoken", "get", "github", "token"]
+def test_query_terms_drop_stop_words_and_keep_identifiers_whole():
+    assert query_terms("Where is getGithubToken used?") == ["getgithubtoken"]  # index holds it whole
+    assert query_terms("How are GitHub tokens stored?") == ["github", "tokens", "stored"]  # no git/hub
+    assert query_terms("what calls get_github_token") == ["calls", "get", "github", "token"]
     assert query_terms("How does the AI fallback chain work?") == ["ai", "fallback", "chain"]
     assert query_terms("what is it?") == []
     # Only [a-z0-9] reaches the tsquery — operators like & | ! : can't be injected.

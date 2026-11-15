@@ -94,7 +94,9 @@ class Settings(BaseSettings):
     RAG_MAX_FILE_CHARS: int = 100_000      # larger files are skipped (usually generated)
     RAG_MAX_CHUNKS_PER_REPO: int = 3_000   # caps embedding cost and memory per index run
     RAG_TOP_K: int = 8                     # code chunks put in the prompt
-    RAG_MIN_SIMILARITY: float = 0.5        # best cosine similarity below this → "low confidence"
+    # Best cosine similarity below this → "low confidence". Measured on this repo (docs/RAG.md):
+    # off-topic questions 0.65–0.67, weakest on-topic 0.75.
+    RAG_MIN_SIMILARITY: float = 0.70
 
     # ── JWT ────────────────────────────────────────────────────────────────────
     JWT_SECRET_KEY: str = _DEFAULT_JWT_SECRET

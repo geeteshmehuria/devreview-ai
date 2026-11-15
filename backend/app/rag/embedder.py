@@ -80,7 +80,7 @@ class GeminiEmbedder:
         except errors.APIError as e:
             if _is_daily_quota(e):  # EmbeddingError isn't retryable, so this stops tenacity immediately
                 raise EmbeddingError(
-                    "Gemini's daily embedding quota is used up. Try again after it resets (midnight Pacific time)."
+                    "Gemini's daily embedding quota is used up. Please try again later."
                 ) from e
             raise
         embeddings = response.embeddings or []

@@ -38,14 +38,19 @@ EVAL_DIR = "backend/app/rag/eval/"
 
 
 class CachedEmbedder:
-    """Embed each question once and reuse the vector for both modes (halves API calls)."""
+    """
+    Embed each question once, reuse it for both modes, and keep the vectors in a file: re-running
+    the eval after a retrieval change then costs no embedding quota (free tier: 1000/day).
+    """
 
-    def __init__(self, inner: GeminiEmbedder):
-        self.inner, self.cache = inner, {}
+    def __init__(self, inner: GeminiEmbedder, path: Path):
+        self.inner, self.path = inner, path
+        self.cache = json.loads(path.read_text()) if path.exists() else {}
 
     async def embed_query(self, text: str) -> list[float]:
         if text not in self.cache:
             self.cache[text] = await self.inner.embed_query(text)
+            self.path.write_text(json.dumps(self.cache))
         return self.cache[text]
 
 
@@ -56,9 +61,9 @@ def first_hit_rank(files: list[str], expected: list[str]) -> int | None:
     return next((i for i, f in enumerate(files, start=1) if f in expected), None)
 
 
-async def main(repo_id: str | None, repo_name: str | None) -> None:
+async def main(repo_id: str | None, repo_name: str | None, cache: Path) -> None:
     questions = json.loads(QUESTIONS.read_text())
-    embedder = CachedEmbedder(GeminiEmbedder())
+    embedder = CachedEmbedder(GeminiEmbedder(), cache)
     top_k = get_settings().RAG_TOP_K
 
     async with AsyncSessionLocal() as db:
@@ -105,5 +110,7 @@ if __name__ == "__main__":
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--repo-id")
     group.add_argument("--repo-name")
+    parser.add_argument("--cache", type=Path, default=Path("/tmp/rag_eval_query_vectors.json"),
+                        help="query-embedding cache file (only valid for the same embedding model)")
     args = parser.parse_args()
-    asyncio.run(main(args.repo_id, args.repo_name))
+    asyncio.run(main(args.repo_id, args.repo_name, args.cache))
