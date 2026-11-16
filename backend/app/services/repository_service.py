@@ -285,7 +285,8 @@ def _read_sample(root: Path, path: Path, max_chars: int = MAX_FILE_SIZE) -> str 
     try:
         if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(root):
             return None
-        return path.read_text(errors="replace")[:max_chars]
+        with path.open(errors="replace") as f:
+            return f.read(max_chars)  # bounded read: a huge file must never be loaded whole
     except OSError:
         return None
 

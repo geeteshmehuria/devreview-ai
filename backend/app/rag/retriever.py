@@ -17,7 +17,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Float, Integer, bindparam, func, literal, select
+from sqlalchemy import Float, Integer, bindparam, func, literal, select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
@@ -119,6 +120,15 @@ async def vector_search(
     distance = CodeChunk.embedding.op("<=>", return_type=Float)(
         bindparam("qvec", query_vector, type_=Vector(EMBEDDING_DIM))
     )
+    # pgvector applies the repository filter AFTER the HNSW scan, so with many repos in the table the
+    # ~40 nearest vectors can all belong to other repos. Iterative scan (pgvector 0.8+) keeps scanning
+    # until `limit` rows pass the filter. In a savepoint, so an older pgvector that rejects the
+    # setting doesn't abort the transaction; it then falls back to the plain post-filtered scan.
+    try:
+        async with db.begin_nested():
+            await db.execute(text("SET LOCAL hnsw.iterative_scan = strict_order"))
+    except DBAPIError:
+        pass
     stmt = _owned_chunks(repository_id, user_id).add_columns((1 - distance).label("similarity"))
     rows = (await db.execute(stmt.order_by(distance).limit(limit))).all()
     return [(chunk, float(similarity)) for chunk, similarity in rows]

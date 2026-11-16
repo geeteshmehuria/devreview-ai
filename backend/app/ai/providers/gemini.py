@@ -56,7 +56,9 @@ class GeminiProvider(AIProvider):
             model=self.model_name,
             contents=contents,
             config=types.GenerateContentConfig(
-                system_instruction=system, temperature=CHAT_TEMPERATURE, max_output_tokens=CHAT_MAX_OUTPUT_TOKENS
+                system_instruction=system, temperature=CHAT_TEMPERATURE,
+                # Thinking tokens count against this budget; at 1x, answers were cut off or empty.
+                max_output_tokens=CHAT_MAX_OUTPUT_TOKENS * 4,
             ),
         ):
             usage = chunk.usage_metadata or usage

@@ -109,6 +109,7 @@ export async function streamChatMessage(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let finished = false;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -121,6 +122,9 @@ export async function streamChatMessage(
       else if (event === "citations") handlers.onCitations((d.citations as ChatCitation[]) ?? [], Boolean(d.low_confidence));
       else if (event === "done") handlers.onDone(String(d.message_id ?? ""));
       else if (event === "error") handlers.onError(String(d.message ?? "Something went wrong."));
+      finished ||= event === "done" || event === "error";
     }
   }
+  // The connection closed mid-answer (server restart, proxy timeout): without this the UI waits forever.
+  if (!finished) handlers.onError("The connection was lost before the answer finished. Please try again.");
 }

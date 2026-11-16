@@ -62,7 +62,9 @@ class GeminiEmbedder:
         return vectors
 
     async def embed_query(self, text: str) -> list[float]:
-        return (await self._embed_batch([text], QUERY_TASK))[0]
+        # A user is waiting on this one: retry a rate limit once (~4s), not the ~2 minutes indexing allows.
+        embed = self._embed_batch.retry_with(stop=stop_after_attempt(2))
+        return (await embed(self, [text], QUERY_TASK))[0]
 
     @retry(
         retry=retry_if_exception(_is_retryable),

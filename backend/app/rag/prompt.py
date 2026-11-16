@@ -5,6 +5,7 @@ Context blocks are numbered [1]..[n]; the model must cite them as [n], and the s
 numbers it actually used into file:line citations with GitHub links.
 """
 
+import html
 import re
 from dataclasses import dataclass
 from urllib.parse import quote
@@ -57,14 +58,19 @@ def _escape(text: str) -> str:
     return text.replace("</source", "<\\/source")
 
 
+def _attr(text: str) -> str:
+    # File and symbol names come from the repository too: a quote or ">" must not close the tag.
+    return html.escape(text, quote=True)
+
+
 def build_context(result: RetrievalResult, repo_url: str, sha: str) -> tuple[str, list[Citation]]:
     """Numbered <source> blocks: code chunks first, then saved review findings."""
     blocks, citations = [], []
     for chunk in result.chunks:
         n = len(citations) + 1
-        symbol = f' symbol="{chunk.symbol_name}"' if chunk.symbol_name else ""
+        symbol = f' symbol="{_attr(chunk.symbol_name)}"' if chunk.symbol_name else ""
         blocks.append(
-            f'<source id="{n}" type="code" path="{chunk.file_path}" lines="{chunk.start_line}-{chunk.end_line}"{symbol}>\n'
+            f'<source id="{n}" type="code" path="{_attr(chunk.file_path)}" lines="{chunk.start_line}-{chunk.end_line}"{symbol}>\n'
             f"{_escape(chunk.content)}\n</source>"
         )
         citations.append(Citation(
@@ -73,7 +79,7 @@ def build_context(result: RetrievalResult, repo_url: str, sha: str) -> tuple[str
         ))
     for f in result.findings:
         n = len(citations) + 1
-        where = f' path="{f.file_path}"' + (f' line="{f.line}"' if f.line else "") if f.file_path else ""
+        where = f' path="{_attr(f.file_path)}"' + (f' line="{f.line}"' if f.line else "") if f.file_path else ""
         body = f"[{f.severity}] {f.title}\n{f.description}" + (f"\nRecommendation: {f.recommendation}" if f.recommendation else "")
         blocks.append(f'<source id="{n}" type="review_finding" kind="{f.kind}"{where}>\n{_escape(body)}\n</source>')
         citations.append(Citation(
@@ -96,8 +102,12 @@ def build_user_message(question: str, context: str, low_confidence: bool) -> str
 
 def history_messages(history: list[tuple[str, str]]) -> list[dict]:
     """Earlier turns, with old [n] markers removed — they point at a previous turn's context blocks."""
-    return [{"role": role, "content": re.sub(r"\[\d+\]", "", content)} for role, content in history]
+    return [{"role": role, "content": _MARKER_OR_CODE.sub(lambda m: m.group(1) or "", content)} for role, content in history]
+
+
+# Code is matched first so `rows[1]` inside it is never mistaken for a citation marker.
+_MARKER_OR_CODE = re.compile(r"(```.*?```|`[^`\n]*`)|\[(\d+)\]", re.DOTALL)
 
 
 def cited_numbers(answer: str) -> set[int]:
-    return {int(n) for n in re.findall(r"\[(\d+)\]", answer)}
+    return {int(m.group(2)) for m in _MARKER_OR_CODE.finditer(answer) if m.group(2)}

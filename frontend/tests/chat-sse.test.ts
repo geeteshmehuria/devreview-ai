@@ -66,6 +66,15 @@ describe("streamChatMessage", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it("reports an error when the stream ends without done or error", async () => {
+    fetchMock.mockResolvedValueOnce(sseResponse(['event: token\ndata: {"text": "Partial"}\n\n']));
+    const h = handlers();
+    await streamChatMessage("s1", "q", h);
+    expect(h.onToken).toHaveBeenCalledWith("Partial");
+    expect(h.onError).toHaveBeenCalledTimes(1);
+    expect(h.onDone).not.toHaveBeenCalled();
+  });
+
   it("dispatches events even when they are split across network chunks", async () => {
     fetchMock.mockResolvedValueOnce(
       sseResponse([
