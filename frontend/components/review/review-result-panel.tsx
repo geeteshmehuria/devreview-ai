@@ -47,7 +47,7 @@ export function ReviewResultPanel({ review, onClear }: ReviewResultPanelProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border bg-surface-1">
         <div className="flex items-center gap-4">
-          <ScoreRing score={review.overall_score || 0} size={56} />
+          {review.overall_score != null && <ScoreRing score={review.overall_score} size={56} />}
           <div>
             <p className="text-white font-semibold">{review.title || "Code Review"}</p>
             <div className="flex items-center gap-2 mt-0.5">
@@ -71,6 +71,12 @@ export function ReviewResultPanel({ review, onClear }: ReviewResultPanelProps) {
           </button>
         )}
       </div>
+
+      {review.status === "failed" && (
+        <div role="alert" className="px-6 py-3 border-b border-surface-border bg-red-500/10 text-sm text-red-400">
+          This review failed{review.error_message ? `: ${review.error_message}` : "."}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-surface-border bg-surface-1 overflow-x-auto">

@@ -48,9 +48,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await authApi.me();
       set({ user, isInitialized: true, isLoading: false });
     } catch {
-      // Token invalid — clear it (the API client redirects to /login)
-      get().clearTokens();
-      set({ isInitialized: true, isLoading: false });
+      // A rejected token is already cleared by the API client (after a failed refresh).
+      // Anything else (timeout, backend cold start, 5xx) must not log the user out.
+      set({ user: null, isInitialized: true, isLoading: false });
     }
   },
 

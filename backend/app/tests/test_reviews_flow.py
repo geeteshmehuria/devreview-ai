@@ -188,3 +188,63 @@ def test_repo_sampling_skips_symlinks(tmp_path):
 )
 def test_parse_repo_url(url, expected):
     assert repository_service.parse_repo_url(url) == expected
+
+
+@pytest.mark.asyncio
+async def test_upload_with_nul_bytes_is_reviewed(auth_client, monkeypatch):
+    """UTF-16 files decode to text full of NULs, which Postgres rejects."""
+    async def fake_run_review(request, preferred=None):
+        assert "\x00" not in request.content
+        return build_response(AI_DATA, "gemini", "test-model")
+
+    monkeypatch.setattr(review_service, "run_review", fake_run_review)
+    files = {"file": ("main.py", "print('hello world')".encode("utf-16-le"))}
+    response = await auth_client.post("/api/v1/reviews/file", files=files)
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.asyncio
+async def test_failed_review_detail_includes_error(auth_client, monkeypatch):
+    async def failing_run_review(request, preferred=None):
+        raise AIProviderError("All AI providers failed")
+
+    monkeypatch.setattr(review_service, "run_review", failing_run_review)
+    await auth_client.post("/api/v1/reviews/code", json={"content": "print('failing review')"})
+    review_id = (await auth_client.get("/api/v1/reviews")).json()["items"][0]["id"]
+    detail = (await auth_client.get(f"/api/v1/reviews/{review_id}")).json()
+    assert detail["error_message"] == "All AI providers failed"
+
+
+@pytest.mark.asyncio
+async def test_second_login_keeps_first_refresh_token_until_logout(db_session):
+    from app.core.exceptions import UnauthorizedError
+    from app.services import auth_service
+
+    user = User(github_id=uuid.uuid4().int % 10**9, github_login="multi-device")
+    db_session.add(user)
+    await db_session.flush()
+
+    first = auth_service._issue_tokens(user)
+    auth_service._issue_tokens(user)  # second device or tab
+    assert (await auth_service.refresh_access_token(db_session, first.refresh_token)).access_token
+
+    await auth_service.logout(user)
+    with pytest.raises(UnauthorizedError):
+        await auth_service.refresh_access_token(db_session, first.refresh_token)
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_key_is_the_user_not_a_forged_ip(auth_client):
+    from starlette.requests import Request
+
+    from app.core.rate_limit import _user_or_ip
+
+    def key(forwarded_for: str) -> str:
+        headers = [
+            (b"authorization", auth_client.headers["Authorization"].encode()),
+            (b"x-forwarded-for", forwarded_for.encode()),
+        ]
+        return _user_or_ip(Request({"type": "http", "headers": headers, "client": (forwarded_for, 1)}))
+
+    assert key("1.1.1.1") == key("2.2.2.2")
+    assert key("1.1.1.1").startswith("user:")
