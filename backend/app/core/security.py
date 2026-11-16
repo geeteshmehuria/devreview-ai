@@ -41,11 +41,11 @@ def create_access_token(user_id: str, extra: dict | None = None) -> str:
     )
 
 
-def create_refresh_token(user_id: str) -> str:
+def create_refresh_token(user_id: str, session_id: str) -> str:
     return _create_token(
         subject=user_id,
         expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
-        extra={"type": "refresh"},
+        extra={"type": "refresh", "sid": session_id},
     )
 
 

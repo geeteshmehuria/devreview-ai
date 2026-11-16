@@ -99,7 +99,11 @@ export default function DashboardPage() {
                 {recentReviews.map((review) => (
                   <Link key={review.id} href={`/history/${review.id}`}>
                     <div className="flex items-center gap-4 p-4 rounded-xl bg-surface-2 hover:bg-surface-3 border border-surface-border hover:border-brand-600/30 transition-all cursor-pointer">
-                      <ScoreRing score={review.overall_score || 0} size={44} />
+                      {review.overall_score != null ? (
+                        <ScoreRing score={review.overall_score} size={44} />
+                      ) : (
+                        <AlertTriangle className="w-11 h-11 p-2.5 text-red-400 shrink-0" aria-label="Review failed" />
+                      )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white truncate">
                           {review.title || "Code Review"}
@@ -111,7 +115,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="text-right shrink-0">
                         <p className={`text-sm font-semibold ${getScoreColor(review.overall_score || 0)}`}>
-                          {formatScore(review.overall_score)}/100
+                          {review.overall_score != null ? `${formatScore(review.overall_score)}/100` : "Failed"}
                         </p>
                         <p className="text-xs text-slate-500 mt-0.5">{formatRelativeTime(review.created_at)}</p>
                       </div>

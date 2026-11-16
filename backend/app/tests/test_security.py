@@ -21,7 +21,7 @@ class TestJWT:
         assert payload["type"] == "access"
 
     def test_refresh_token_type(self):
-        assert decode_token(create_refresh_token("user-456"))["type"] == "refresh"
+        assert decode_token(create_refresh_token("user-456", "sid"))["type"] == "refresh"
 
     def test_state_token_type(self):
         assert decode_token(create_state_token())["type"] == "oauth_state"

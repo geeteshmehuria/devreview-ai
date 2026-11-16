@@ -59,4 +59,19 @@ describe("AuthStore", () => {
     expect(useAuthStore.getState().isInitialized).toBe(true);
     expect(useAuthStore.getState().user).toBeNull();
   });
+
+  it("initialize keeps the session when /auth/me fails for a non-auth reason", async () => {
+    vi.doMock("@/lib/api/auth", () => ({
+      authApi: { me: vi.fn().mockRejectedValue(new Error("timeout of 30000ms exceeded")) },
+    }));
+    localStorage.setItem("access_token", "token");
+    localStorage.setItem("refresh_token", "refresh");
+
+    await useAuthStore.getState().initialize();
+
+    expect(localStorage.getItem("access_token")).toBe("token");
+    expect(localStorage.getItem("refresh_token")).toBe("refresh");
+    expect(useAuthStore.getState().isInitialized).toBe(true);
+    vi.doUnmock("@/lib/api/auth");
+  });
 });

@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 DetailLevel = Literal["brief", "detailed", "comprehensive"]
 ProviderName = Literal["gemini", "openai", "claude"]
@@ -16,6 +16,12 @@ class CodeReviewRequest(BaseModel):
     filename: str | None = Field(None, max_length=500)
     detail_level: DetailLevel = "detailed"
     ai_provider: ProviderName | None = None  # None = use default
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def strip_nul(cls, v):
+        """Postgres text columns reject NUL bytes (UTF-16 or binary uploads contain them)."""
+        return v.replace("\x00", "") if isinstance(v, str) else v
 
 
 class PRReviewRequest(BaseModel):
@@ -59,6 +65,7 @@ class ReviewOut(BaseModel):
     ai_summary: str | None
     ai_provider: str
     ai_model: str
+    error_message: str | None = None
     created_at: str | None
 
     category_scores: list[CategoryScoreOut] = []

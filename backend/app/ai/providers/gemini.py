@@ -32,7 +32,7 @@ class GeminiProvider(AIProvider):
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 temperature=0.1,  # low temp = more deterministic, consistent JSON
-                max_output_tokens=8192,
+                max_output_tokens=32768,  # thinking tokens count too; 8192 truncated the JSON
                 response_mime_type="application/json",
             ),
         )

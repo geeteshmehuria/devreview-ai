@@ -154,6 +154,7 @@ def _review_to_out(review: Review) -> dict:
         **_review_to_list_item(review),
         "ai_summary": review.ai_summary,
         "ai_model": review.ai_model,
+        "error_message": review.error_message,
         "category_scores": [
             {"category": r.category, "score": r.score, "summary": r.summary or "", "suggestions": r.suggestions or []}
             for r in review.results

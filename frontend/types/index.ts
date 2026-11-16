@@ -93,6 +93,7 @@ export interface Review {
   ai_summary: string | null;
   ai_provider: string;
   ai_model: string;
+  error_message?: string | null;
   created_at: string;
   category_scores: CategoryScore[];
   security_findings: Finding[];

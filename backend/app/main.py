@@ -19,8 +19,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from sqlalchemy import update
+
 from app.core.config import get_settings
+from app.core.database import AsyncSessionLocal
 from app.core.exceptions import AppException
+from app.models.repository import Repository, RepositoryStatus
 from app.core.rate_limit import limiter
 from app.routers import auth, chat, repositories, reviews, pull_requests
 
@@ -32,6 +36,18 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
     logger.info("startup", env=settings.APP_ENV, debug=settings.DEBUG)
+    # Analyses run in-process, so any still marked "analyzing" died with the last process.
+    # shortcut: assumes a single instance; with several, track a job heartbeat instead.
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                update(Repository)
+                .where(Repository.status == RepositoryStatus.ANALYZING)
+                .values(status=RepositoryStatus.FAILED)
+            )
+            await session.commit()
+    except Exception as e:
+        logger.warning("stale_analysis_reset_failed", error=str(e))
     yield
     logger.info("shutdown")
 
@@ -97,9 +113,18 @@ async def app_exception_handler(request: Request, exc: AppException):
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.error("unhandled_exception", error=str(exc), path=request.url.path, exc_info=True)
+    # This handler runs outside CORSMiddleware, so add the headers here or the
+    # browser hides the response and the frontend only sees "Network Error".
+    origin = request.headers.get("origin")
+    headers = (
+        {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Vary": "Origin"}
+        if origin in settings.ALLOWED_ORIGINS
+        else None
+    )
     return JSONResponse(
         status_code=500,
         content={"detail": "An unexpected error occurred"},
+        headers=headers,
     )
 
 

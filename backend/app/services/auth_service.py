@@ -3,7 +3,7 @@ GitHub OAuth + JWT authentication service.
 Exchanges GitHub code for user data, upserts user, issues token pair.
 """
 
-import hashlib
+import secrets
 import uuid
 
 import httpx
@@ -21,6 +21,8 @@ from app.core.security import (
     decrypt_secret,
     encrypt_secret,
 )
+from app.models.pull_request import PullRequest
+from app.models.review import Review
 from app.models.user import User
 from app.schemas.auth import TokenPair, UserPublic
 
@@ -100,17 +102,20 @@ async def upsert_user(db: AsyncSession, github_data: dict, github_token: str) ->
     return user
 
 
-def _hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
 def _issue_tokens(user: User) -> TokenPair:
-    """Create a new access/refresh pair and remember the refresh hash for rotation."""
-    refresh = create_refresh_token(str(user.id))
-    user.refresh_token_hash = _hash_token(refresh)
+    """Create an access/refresh pair bound to the user's session id.
+
+    ``refresh_token_hash`` holds that session id. It is shared by every device
+    and tab (so one login or refresh never invalidates another) and cleared on
+    logout, which revokes all of the user's refresh tokens at once.
+    shortcut: no per-token rotation, so a stolen refresh token works until logout
+    or expiry; move to a refresh_tokens table if per-device revocation is needed.
+    """
+    if not user.refresh_token_hash:
+        user.refresh_token_hash = secrets.token_hex(32)
     return TokenPair(
         access_token=create_access_token(str(user.id)),
-        refresh_token=refresh,
+        refresh_token=create_refresh_token(str(user.id), user.refresh_token_hash),
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
 
@@ -124,8 +129,8 @@ async def login_with_github(db: AsyncSession, code: str) -> tuple[TokenPair, Use
 
 async def refresh_access_token(db: AsyncSession, refresh_token: str) -> TokenPair:
     """
-    Rotate refresh token on each use (prevents replay attacks).
-    Old refresh token is invalidated immediately.
+    Issue a new token pair for a refresh token that belongs to the user's
+    current session (see _issue_tokens). Logout revokes it.
     """
     try:
         payload = decode_token(refresh_token)
@@ -136,7 +141,12 @@ async def refresh_access_token(db: AsyncSession, refresh_token: str) -> TokenPai
         raise UnauthorizedError("Invalid or expired refresh token")
 
     user = await db.get(User, user_id)
-    if not user or not user.is_active or user.refresh_token_hash != _hash_token(refresh_token):
+    if (
+        not user
+        or not user.is_active
+        or not user.refresh_token_hash
+        or not secrets.compare_digest(str(payload.get("sid", "")), user.refresh_token_hash)
+    ):
         raise UnauthorizedError("Refresh token has been revoked")
 
     return _issue_tokens(user)
@@ -149,4 +159,14 @@ async def logout(user: User) -> None:
 
 async def delete_account(db: AsyncSession, user: User) -> None:
     """Permanently delete the user; the DB cascades to repositories, reviews and findings."""
+    # PRs of repos the user never imported have no repository to cascade from.
+    await db.execute(
+        delete(PullRequest).where(
+            PullRequest.id.in_(
+                select(Review.pull_request_id).where(
+                    Review.user_id == user.id, Review.pull_request_id.is_not(None)
+                )
+            )
+        )
+    )
     await db.execute(delete(User).where(User.id == user.id))

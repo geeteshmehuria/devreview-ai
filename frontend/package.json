@@ -38,13 +38,21 @@
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.3",
     "@types/react-dom": "^19.0.2",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.3.0",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.2.3",
     "jsdom": "^25.0.1",
-    "postcss": "^8.5.1",
+    "postcss": "^8.5.33",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.3",
-    "vitest": "^2.1.8"
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.33",
+    "postcss-selector-parser": "^6.1.6",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.8"
+    }
   }
 }

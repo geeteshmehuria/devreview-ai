@@ -3,7 +3,7 @@
 import uuid
 from enum import StrEnum
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,7 +27,7 @@ class PullRequest(Base, UUIDMixin, TimestampMixin):
     )
 
     # GitHub metadata
-    github_pr_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    github_pr_id: Mapped[int] = mapped_column(BigInteger, nullable=False)  # GitHub PR ids exceed int32
     pr_number: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

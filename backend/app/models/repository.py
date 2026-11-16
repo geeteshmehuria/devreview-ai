@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -43,7 +43,7 @@ class Repository(Base, UUIDMixin, TimestampMixin):
     )
 
     # GitHub metadata
-    github_repo_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    github_repo_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     full_name: Mapped[str] = mapped_column(String(500), nullable=False)  # e.g. "owner/repo"
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

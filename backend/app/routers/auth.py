@@ -63,13 +63,13 @@ async def refresh_token(
     payload: RefreshRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Issue new access + refresh token pair (rotates refresh token)."""
+    """Issue a new access + refresh token pair."""
     return await refresh_access_token(db, payload.refresh_token)
 
 
 @router.post("/logout")
 async def logout_user(current_user: User = Depends(get_current_user)):
-    """Revoke the current user's refresh token."""
+    """Revoke the current user's refresh tokens (all devices)."""
     await logout(current_user)
     return {"message": "Logged out successfully"}
 
