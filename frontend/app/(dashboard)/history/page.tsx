@@ -41,9 +41,9 @@ export default function HistoryPage() {
 
   return (
     <div className="max-w-5xl space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">Review History</h2>
+          <h2 className="text-xl font-bold text-white tracking-tight">Review History</h2>
           <p className="text-slate-400 text-sm mt-1">All {total} reviews — nothing is ever lost.</p>
         </div>
 
@@ -53,7 +53,8 @@ export default function HistoryPage() {
           <select
             value={typeFilter}
             onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
-            className="px-3 py-1.5 bg-surface-2 border border-surface-border text-white text-sm rounded-lg focus:outline-none focus:border-brand-500"
+            aria-label="Filter by review type"
+            className="px-3 h-10 bg-surface-2 border border-surface-border text-white text-sm rounded-lg focus:outline-none focus:border-brand-400"
           >
             {FILTER_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -67,7 +68,7 @@ export default function HistoryPage() {
           {[...Array(8)].map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : reviews.length === 0 ? (
-        <div className="glass-card rounded-2xl p-12 text-center">
+        <div className="glass-card rounded-2xl p-8 sm:p-12 text-center">
           <History className="w-12 h-12 text-slate-600 mx-auto mb-3" />
           <p className="text-white font-medium mb-1">No reviews found</p>
           <p className="text-slate-400 text-sm">
@@ -88,8 +89,8 @@ export default function HistoryPage() {
                 >
                   <Link href={`/history/${review.id}`}>
                     <div className="glass-card glass-hover rounded-xl p-4 cursor-pointer">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-surface-3 flex items-center justify-center shrink-0">
+                      <div className="flex items-center gap-3 sm:gap-4">
+                        <div className="hidden min-[400px]:flex w-10 h-10 rounded-xl bg-surface-3 flex items-center justify-center shrink-0">
                           <Icon className="w-5 h-5 text-slate-400" />
                         </div>
 
@@ -97,21 +98,22 @@ export default function HistoryPage() {
                           <p className="text-sm font-medium text-white truncate">
                             {review.title || "Code Review"}
                           </p>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-x-2 gap-y-0.5 mt-0.5 flex-wrap">
                             <span className="text-xs text-slate-500 capitalize">
                               {review.review_type.replaceAll("_", " ")}
                             </span>
                             {review.language && (
-                              <span className="text-xs text-slate-600">· {review.language}</span>
+                              <span className="text-xs text-slate-500">· {review.language}</span>
                             )}
-                            <span className="text-xs text-slate-600">· {review.ai_provider}</span>
+                            <span className="text-xs text-slate-500 hidden sm:inline">· {review.ai_provider}</span>
+                            <span className="text-xs text-slate-500 sm:hidden">· {formatRelativeTime(review.created_at)}</span>
                             {review.status === "failed" && (
                               <span className="text-xs px-1.5 rounded bg-red-500/10 text-red-400">failed</span>
                             )}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-4 shrink-0">
+                        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
                           {review.overall_score != null && (
                             <ScoreRing score={review.overall_score} size={40} />
                           )}
@@ -136,7 +138,7 @@ export default function HistoryPage() {
               <button
                 onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
-                className="px-4 py-2 bg-surface-2 text-slate-300 rounded-lg text-sm disabled:opacity-40 hover:bg-surface-3 transition-colors"
+                className="px-4 h-11 bg-surface-2 text-slate-300 rounded-lg text-sm disabled:opacity-40 hover:bg-surface-3 transition-colors"
               >
                 Previous
               </button>
@@ -144,7 +146,7 @@ export default function HistoryPage() {
               <button
                 onClick={() => setPage(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
-                className="px-4 py-2 bg-surface-2 text-slate-300 rounded-lg text-sm disabled:opacity-40 hover:bg-surface-3 transition-colors"
+                className="px-4 h-11 bg-surface-2 text-slate-300 rounded-lg text-sm disabled:opacity-40 hover:bg-surface-3 transition-colors"
               >
                 Next
               </button>

@@ -45,22 +45,22 @@ export default function PullRequestsPage() {
       </div>
 
       {/* Input */}
-      <div className="glass-card rounded-2xl p-6">
+      <div className="glass-card rounded-2xl p-4 sm:p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-sm text-slate-400 mb-2 block">GitHub Pull Request URL</label>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <input
                 type="url"
                 value={prUrl}
                 onChange={(e) => setPrUrl(e.target.value)}
                 placeholder="https://github.com/owner/repo/pull/123"
-                className="flex-1 px-4 py-3 bg-surface-2 border border-surface-border text-white placeholder-slate-500 rounded-xl text-sm focus:outline-none focus:border-brand-500 transition-colors"
+                className="flex-1 min-w-0 px-4 h-12 bg-surface-2 border border-surface-border text-white placeholder-slate-500 rounded-xl text-sm focus:outline-none focus:border-brand-500 transition-colors"
               />
               <button
                 type="submit"
                 disabled={mutation.isPending || !prUrl}
-                className="flex items-center gap-2 px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105"
+                className="flex items-center justify-center gap-2 px-6 h-12 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {mutation.isPending ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Analysing…</>
@@ -86,10 +86,10 @@ export default function PullRequestsPage() {
             className="space-y-4"
           >
             {/* PR header */}
-            <div className="glass-card rounded-2xl p-6">
-              <div className="flex items-start gap-5">
+            <div className="glass-card rounded-2xl p-4 sm:p-6">
+              <div className="flex flex-col min-[480px]:flex-row items-start gap-4 sm:gap-5">
                 <ScoreRing score={result.overall_score} size={80} />
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-slate-500">PR #{result.pr_number}</span>
                     <a href={mutation.variables} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-300">
@@ -99,8 +99,8 @@ export default function PullRequestsPage() {
                       View all findings →
                     </Link>
                   </div>
-                  <h3 className="text-white font-semibold text-lg mt-1">{result.pr_title}</h3>
-                  <div className="flex items-center gap-4 mt-2">
+                  <h3 className="text-white font-semibold text-lg mt-1 break-words">{result.pr_title}</h3>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
                     <span className="text-sm">
                       <span className="text-slate-400">Overall: </span>
                       <span className={`font-bold ${getScoreColor(result.overall_score)}`}>
@@ -120,7 +120,7 @@ export default function PullRequestsPage() {
             </div>
 
             {/* Categories */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 gap-3">
               {result.category_scores.map((cs) => (
                 <div key={cs.category} className="glass-card rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
@@ -140,7 +140,7 @@ export default function PullRequestsPage() {
             </div>
 
             {/* AI Summary */}
-            <div className="glass-card rounded-2xl p-6">
+            <div className="glass-card rounded-2xl p-4 sm:p-6">
               <h3 className="text-white font-semibold mb-3">AI Review Summary</h3>
               <div className="prose prose-sm prose-invert max-w-none text-slate-300">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.ai_summary}</ReactMarkdown>

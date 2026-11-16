@@ -33,27 +33,27 @@ export default function SettingsPage() {
       </div>
 
       {/* Profile */}
-      <div className="glass-card rounded-2xl p-6">
+      <div className="glass-card rounded-2xl p-4 sm:p-6">
         <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Profile</h3>
         {user && (
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             {user.github_avatar_url ? (
               <Image src={user.github_avatar_url} alt={user.github_login} width={64} height={64} className="rounded-full" />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-brand-700 flex items-center justify-center text-white text-2xl font-bold">
+              <div className="w-16 h-16 rounded-full bg-brand-600 flex items-center justify-center text-white text-2xl font-bold">
                 {user.github_login[0].toUpperCase()}
               </div>
             )}
-            <div>
+            <div className="min-w-0">
               <p className="text-white font-semibold text-lg">{user.github_name || user.github_login}</p>
               <p className="text-slate-400">@{user.github_login}</p>
-              {user.github_email && <p className="text-slate-500 text-sm mt-0.5">{user.github_email}</p>}
+              {user.github_email && <p className="text-slate-500 text-sm mt-0.5 break-all">{user.github_email}</p>}
             </div>
             <a
               href={`https://github.com/${user.github_login}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="ml-auto flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-3 text-slate-300 rounded-lg text-sm transition-colors border border-surface-border"
+              className="w-full sm:w-auto sm:ml-auto flex items-center justify-center gap-2 px-4 h-11 sm:h-10 bg-surface-2 hover:bg-surface-3 text-slate-300 rounded-lg text-sm transition-colors border border-surface-border"
             >
               <Github className="w-4 h-4" />
               GitHub Profile
@@ -63,7 +63,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Danger zone */}
-      <div className="glass-card rounded-2xl p-6 border border-red-500/20">
+      <div className="glass-card rounded-2xl p-4 sm:p-6 border border-red-500/20">
         <div className="flex items-center gap-2 mb-4">
           <Shield className="w-4 h-4 text-red-400" />
           <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wider">Danger Zone</h3>
@@ -74,7 +74,7 @@ export default function SettingsPage() {
         <button
           onClick={handleDelete}
           disabled={deleteMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm transition-colors disabled:opacity-50"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 h-11 sm:h-10 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm transition-colors disabled:opacity-50"
         >
           {deleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
           Delete Account

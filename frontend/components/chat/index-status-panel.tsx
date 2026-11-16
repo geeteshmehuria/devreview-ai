@@ -48,9 +48,9 @@ export function IndexStatusPanel({ repoId }: { repoId: string }) {
   const indexing = status.index_status === "indexing";
 
   return (
-    <div className="glass-card rounded-2xl p-5 space-y-3">
+    <div className="glass-card rounded-2xl p-4 sm:p-5 space-y-3">
       <div className="flex items-center gap-4 flex-wrap">
-        <div className="w-10 h-10 rounded-xl bg-brand-700/30 flex items-center justify-center shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-brand-600/30 flex items-center justify-center shrink-0">
           <Database className="w-5 h-5 text-brand-400" />
         </div>
         <div className="flex-1 min-w-0">
@@ -71,7 +71,7 @@ export function IndexStatusPanel({ repoId }: { repoId: string }) {
         <button
           onClick={() => indexMutation.mutate()}
           disabled={indexing || indexMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 h-10 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {indexing || indexMutation.isPending ? (
             <Loader2 className="w-4 h-4 animate-spin" />

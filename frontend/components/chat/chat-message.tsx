@@ -25,7 +25,7 @@ export function ChatMessageView({
   if (role === "user") {
     return (
       <div className="flex justify-end gap-3">
-        <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-brand-700/40 border border-brand-600/40 px-4 py-2.5 text-sm text-white whitespace-pre-wrap">
+        <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-brand-600/40 border border-brand-500/40 px-4 py-2.5 text-sm text-white whitespace-pre-wrap">
           {content}
         </div>
         <div className="w-8 h-8 rounded-lg bg-surface-3 flex items-center justify-center shrink-0">
@@ -39,7 +39,7 @@ export function ChatMessageView({
 
   return (
     <div className="flex gap-3">
-      <div className="w-8 h-8 rounded-lg bg-brand-700/30 flex items-center justify-center shrink-0">
+      <div className="w-8 h-8 rounded-lg bg-brand-600/30 flex items-center justify-center shrink-0">
         <Bot className="w-4 h-4 text-brand-400" />
       </div>
       <div className="flex-1 min-w-0 space-y-2">

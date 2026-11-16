@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Code2, GitBranch, Shield, TrendingUp, AlertTriangle, ArrowRight, Zap } from "lucide-react";
+import { Code2, GitBranch, Shield, TrendingUp, AlertTriangle, ArrowRight, Zap, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { reviewsApi } from "@/lib/api/reviews";
 import { repositoriesApi } from "@/lib/api/repositories";
@@ -36,11 +36,14 @@ export default function DashboardPage() {
     : null;
 
   const stats = [
-    { label: "Repositories", value: repoList.length, icon: GitBranch, href: "/repositories", color: "text-brand-400" },
-    { label: "Total Reviews", value: reviews?.total || 0, icon: Code2, href: "/history", color: "text-blue-400" },
-    { label: "Avg Score (recent)", value: avgScore != null ? `${avgScore}` : "—", icon: TrendingUp, href: "/history", color: "text-emerald-400" },
-    { label: "Debt Items", value: debt ? debt.length : "—", icon: AlertTriangle, href: "/debt", color: "text-orange-400" },
+    { label: "Repositories", value: repoList.length, icon: GitBranch, href: "/repositories" },
+    { label: "Total Reviews", value: reviews?.total || 0, icon: Code2, href: "/history" },
+    { label: "Avg Score (recent)", value: avgScore != null ? `${avgScore}` : "—", icon: TrendingUp, href: "/history" },
+    { label: "Debt Items", value: debt ? debt.length : "—", icon: AlertTriangle, href: "/debt" },
   ];
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
     <motion.div
@@ -51,34 +54,53 @@ export default function DashboardPage() {
     >
       {/* Welcome */}
       <motion.div variants={STAGGER.item}>
-        <h2 className="text-2xl font-bold text-white">
-          Good day, {user?.github_name?.split(" ")[0] || user?.github_login} 👋
+        <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+          {greeting}, {user?.github_name?.split(" ")[0] || user?.github_login}
         </h2>
-        <p className="text-slate-400 mt-1">Here&apos;s what&apos;s happening with your code.</p>
+        <p className="text-slate-400 text-sm sm:text-base mt-1">Here&apos;s what&apos;s happening with your code.</p>
+      </motion.div>
+
+      {/* Primary action — phones only (desktop has it in the header) */}
+      <motion.div variants={STAGGER.item} className="sm:hidden">
+        <Link
+          href="/review"
+          className="flex items-center gap-3 p-4 rounded-2xl bg-brand-600/30 border border-brand-500/50 active:bg-brand-600/45 transition-colors"
+        >
+          <span className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center shrink-0">
+            <Code2 className="w-5 h-5 text-white" strokeWidth={2.5} />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[15px] font-semibold text-white">Start a new review</span>
+            <span className="block text-xs text-slate-400">Snippet, file, PR link or repo</span>
+          </span>
+          <ChevronRight className="w-5 h-5 text-slate-400" />
+        </Link>
       </motion.div>
 
       {/* Stats */}
-      <motion.div variants={STAGGER.item} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div variants={STAGGER.item} className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {stats.map((stat) => (
           <Link key={stat.label} href={stat.href}>
-            <div className="glass-card glass-hover rounded-2xl p-5 cursor-pointer">
-              <div className="flex items-start justify-between mb-4">
-                <p className="text-sm text-slate-400">{stat.label}</p>
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
+            <div className="glass-card glass-hover rounded-2xl p-4 sm:p-5 cursor-pointer h-full">
+              <div className="flex items-start justify-between gap-2 mb-3 sm:mb-4">
+                <p className="text-xs sm:text-sm text-slate-400 font-medium">{stat.label}</p>
+                <span className="w-8 h-8 rounded-lg bg-brand-600/35 flex items-center justify-center shrink-0">
+                  <stat.icon className="w-4 h-4 text-brand-400" />
+                </span>
               </div>
-              <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{stat.value}</p>
             </div>
           </Link>
         ))}
       </motion.div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Recent Reviews */}
         <motion.div variants={STAGGER.item} className="lg:col-span-2">
-          <div className="glass-card rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-5">
+          <div className="glass-card rounded-2xl p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-4 sm:mb-5">
               <h3 className="text-white font-semibold">Recent Reviews</h3>
-              <Link href="/history" className="text-sm text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors">
+              <Link href="/history" className="text-sm font-medium text-brand-400 hover:text-brand-300 flex items-center gap-1 py-2 transition-colors">
                 View all <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -98,7 +120,7 @@ export default function DashboardPage() {
               <div className="space-y-3">
                 {recentReviews.map((review) => (
                   <Link key={review.id} href={`/history/${review.id}`}>
-                    <div className="flex items-center gap-4 p-4 rounded-xl bg-surface-2 hover:bg-surface-3 border border-surface-border hover:border-brand-600/30 transition-all cursor-pointer">
+                    <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-surface-2 hover:bg-surface-3 border border-surface-border hover:border-brand-500/50 transition-all cursor-pointer">
                       {review.overall_score != null ? (
                         <ScoreRing score={review.overall_score} size={44} />
                       ) : (
@@ -108,9 +130,9 @@ export default function DashboardPage() {
                         <p className="text-sm font-medium text-white truncate">
                           {review.title || "Code Review"}
                         </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-slate-500 capitalize">{review.review_type.replaceAll("_", " ")}</span>
-                          {review.language && <span className="text-xs text-slate-600">· {review.language}</span>}
+                        <div className="flex items-center gap-2 mt-0.5 min-w-0">
+                          <span className="text-xs text-slate-500 capitalize truncate">{review.review_type.replaceAll("_", " ")}</span>
+                          {review.language && <span className="text-xs text-slate-500 hidden min-[400px]:inline">· {review.language}</span>}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -129,7 +151,7 @@ export default function DashboardPage() {
 
         {/* Quick actions */}
         <motion.div variants={STAGGER.item} className="space-y-4">
-          <div className="glass-card rounded-2xl p-6">
+          <div className="glass-card rounded-2xl p-4 sm:p-6">
             <h3 className="text-white font-semibold mb-4">Quick Actions</h3>
             <div className="space-y-2">
               {[
@@ -138,8 +160,8 @@ export default function DashboardPage() {
                 { href: "/repositories", icon: Shield, label: "Analyse Repository", desc: "Full scan" },
               ].map((action) => (
                 <Link key={action.href} href={action.href}>
-                  <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-3 border border-transparent hover:border-brand-600/20 transition-all cursor-pointer group">
-                    <div className="w-9 h-9 rounded-lg bg-brand-700/30 flex items-center justify-center shrink-0 group-hover:bg-brand-700/50 transition-colors">
+                  <div className="flex items-center gap-3 p-3 min-h-14 rounded-xl hover:bg-surface-3 border border-transparent hover:border-brand-500/40 transition-all cursor-pointer group">
+                    <div className="w-9 h-9 rounded-lg bg-brand-600/35 flex items-center justify-center shrink-0 group-hover:bg-brand-600/60 transition-colors">
                       <action.icon className="w-4 h-4 text-brand-400" />
                     </div>
                     <div>
@@ -154,10 +176,10 @@ export default function DashboardPage() {
           </div>
 
           {/* Repositories */}
-          <div className="glass-card rounded-2xl p-6">
+          <div className="glass-card rounded-2xl p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-white font-semibold">Repositories</h3>
-              <Link href="/repositories" className="text-xs text-brand-400 hover:text-brand-300 transition-colors">
+              <Link href="/repositories" className="text-sm font-medium text-brand-400 hover:text-brand-300 py-2 transition-colors">
                 Manage
               </Link>
             </div>
@@ -171,12 +193,12 @@ export default function DashboardPage() {
               <div className="space-y-2">
                 {repoList.slice(0, 4).map((repo) => (
                   <Link key={repo.id} href="/repositories">
-                    <div className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-surface-3 transition-all cursor-pointer">
-                      <GitBranch className="w-4 h-4 text-brand-400 shrink-0" />
-                      <span className="text-sm text-slate-300 truncate">{repo.name}</span>
+                    <div className="flex items-center gap-3 px-2.5 min-h-11 rounded-lg hover:bg-surface-3 transition-all cursor-pointer">
+                      <GitBranch className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className="text-sm text-slate-200 font-mono truncate">{repo.name}</span>
                       <span className={`ml-auto text-xs px-1.5 py-0.5 rounded-md ${
-                        repo.status === "analyzed" ? "bg-emerald-500/10 text-emerald-400" :
-                        repo.status === "analyzing" ? "bg-yellow-500/10 text-yellow-400" :
+                        repo.status === "analyzed" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30" :
+                        repo.status === "analyzing" ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30" :
                         "bg-slate-500/10 text-slate-400"
                       }`}>
                         {repo.status}
@@ -207,7 +229,7 @@ function EmptyState({ icon: Icon, title, description, action }: {
       <p className="text-sm font-medium text-white mb-1">{title}</p>
       <p className="text-sm text-slate-400 mb-4">{description}</p>
       {action && (
-        <Link href={action.href} className="inline-flex items-center gap-2 px-4 py-2 bg-brand-700/30 hover:bg-brand-700/50 text-brand-400 rounded-lg text-sm font-medium transition-colors">
+        <Link href={action.href} className="inline-flex items-center gap-2 px-4 h-10 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-semibold transition-colors">
           <Zap className="w-4 h-4" />
           {action.label}
         </Link>

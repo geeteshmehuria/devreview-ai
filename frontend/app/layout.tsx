@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { Toaster } from "sonner";
@@ -25,6 +25,13 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#000000",
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`dark ${inter.variable}`}>
@@ -33,12 +40,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <Toaster
             theme="dark"
-            position="bottom-right"
+            position="top-center"
             toastOptions={{
               style: {
-                background: "rgba(15, 22, 18, 0.95)",
-                border: "1px solid rgba(82, 183, 136, 0.2)",
-                color: "#e2e8e4",
+                background: "#111114",
+                border: "1px solid #26262c",
+                color: "#f4f4f5",
               },
             }}
           />

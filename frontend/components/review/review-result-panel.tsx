@@ -45,12 +45,12 @@ export function ReviewResultPanel({ review, onClear }: ReviewResultPanelProps) {
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border bg-surface-1">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-surface-border bg-surface-1">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           {review.overall_score != null && <ScoreRing score={review.overall_score} size={56} />}
-          <div>
-            <p className="text-white font-semibold">{review.title || "Code Review"}</p>
-            <div className="flex items-center gap-2 mt-0.5">
+          <div className="min-w-0">
+            <p className="text-white font-semibold truncate">{review.title || "Code Review"}</p>
+            <div className="flex items-center gap-x-2 gap-y-0.5 mt-0.5 flex-wrap">
               <span className="text-xs text-slate-400">{review.language}</span>
               <span className="text-slate-600">·</span>
               <span className="text-xs text-slate-400 capitalize">{review.ai_provider}</span>
@@ -65,7 +65,7 @@ export function ReviewResultPanel({ review, onClear }: ReviewResultPanelProps) {
           <button
             onClick={onClear}
             aria-label="Close review"
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-surface-3 transition-colors"
+            className="shrink-0 w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-surface-3 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -79,13 +79,13 @@ export function ReviewResultPanel({ review, onClear }: ReviewResultPanelProps) {
       )}
 
       {/* Tabs */}
-      <div className="flex border-b border-surface-border bg-surface-1 overflow-x-auto">
+      <div className="flex border-b border-surface-border bg-surface-1 overflow-x-auto no-scrollbar">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors",
+              "flex items-center gap-1.5 px-4 py-3 min-h-11 text-sm font-medium whitespace-nowrap transition-colors",
               activeTab === tab.id
                 ? "text-white border-b-2 border-brand-400 -mb-px"
                 : "text-slate-400 hover:text-white"
@@ -105,11 +105,11 @@ export function ReviewResultPanel({ review, onClear }: ReviewResultPanelProps) {
       </div>
 
       {/* Content */}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {activeTab === "overview" && (
           <div className="space-y-6">
             {/* Category grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 gap-3">
               {review.category_scores.map((cs) => {
                 const Icon = CATEGORY_ICONS[cs.category] || BarChart3;
                 return (
@@ -137,15 +137,15 @@ export function ReviewResultPanel({ review, onClear }: ReviewResultPanelProps) {
             </div>
 
             {/* Radar chart + Summary */}
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {radarData.length > 0 && (
                 <div className="bg-surface-2 rounded-xl p-4 border border-surface-border">
                   <p className="text-sm text-slate-400 mb-3">Score Radar</p>
                   <ResponsiveContainer width="100%" height={200}>
                     <RadarChart data={radarData}>
                       <PolarGrid stroke="rgba(255,255,255,0.06)" />
-                      <PolarAngleAxis dataKey="category" tick={{ fill: "#94a3b8", fontSize: 11 }} />
-                      <Radar dataKey="score" fill="rgba(82,183,136,0.2)" stroke="#52b788" strokeWidth={2} />
+                      <PolarAngleAxis dataKey="category" tick={{ fill: "#a1a1aa", fontSize: 11 }} />
+                      <Radar dataKey="score" fill="rgba(163,171,245,0.22)" stroke="#a3abf5" strokeWidth={2} />
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
@@ -225,7 +225,7 @@ function FindingsList({ findings, emptyLabel }: { findings: Finding[]; emptyLabe
                 </pre>
               )}
               {finding.recommendation && (
-                <div className="mt-2 p-3 bg-brand-700/10 border border-brand-600/20 rounded-lg">
+                <div className="mt-2 p-3 bg-brand-600/10 border border-brand-500/20 rounded-lg">
                   <p className="text-xs text-brand-300">
                     <span className="font-semibold">Fix: </span>{finding.recommendation}
                   </p>

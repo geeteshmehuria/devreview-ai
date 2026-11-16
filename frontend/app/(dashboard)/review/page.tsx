@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { reviewsApi } from "@/lib/api/reviews";
 import type { Review } from "@/types";
 import { ReviewResultPanel } from "@/components/review/review-result-panel";
+import { useIsMobile } from "@/lib/hooks/use-media-query";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
@@ -32,6 +33,8 @@ export default function ReviewPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [result, setResult] = useState<Review | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Monaco is poor on touch screens: phones get a plain textarea instead
+  const isMobile = useIsMobile();
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -65,7 +68,7 @@ export default function ReviewPage() {
   return (
     <div className="max-w-6xl space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">AI Code Review</h2>
+        <h2 className="text-xl font-bold text-white tracking-tight">AI Code Review</h2>
         <p className="text-slate-400 text-sm mt-1">
           Paste code or upload a file to get an instant AI review across 6 categories.
         </p>
@@ -93,7 +96,7 @@ export default function ReviewPage() {
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition-colors ${
+              className={`flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 min-h-12 text-sm font-medium transition-colors ${
                 mode === m
                   ? "text-white border-b-2 border-brand-400 -mb-px"
                   : "text-slate-400 hover:text-white"
@@ -106,7 +109,7 @@ export default function ReviewPage() {
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-surface-border bg-surface-1">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-4 sm:px-5 py-3 border-b border-surface-border bg-surface-1">
           <Select
             value={language}
             onChange={setLanguage}
@@ -126,7 +129,7 @@ export default function ReviewPage() {
           <button
             onClick={() => mutation.mutate()}
             disabled={mutation.isPending || (mode === "paste" && !code.trim()) || (mode === "upload" && !uploadedFile)}
-            className="ml-auto flex items-center gap-2 px-5 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
+            className="w-full sm:w-auto sm:ml-auto flex items-center justify-center gap-2 px-5 h-11 sm:h-10 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
           >
             {mutation.isPending ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> Analysing…</>
@@ -137,14 +140,41 @@ export default function ReviewPage() {
         </div>
 
         {/* Editor / Upload area */}
-        <div className="h-[480px]">
-          {mode === "paste" ? (
+        <div className="h-[55vh] min-h-[320px] md:h-[480px]">
+          {mode === "paste" && isMobile ? (
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              aria-label="Code to review"
+              placeholder="Paste your code here…"
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              wrap="off"
+              className="w-full h-full resize-none bg-surface-1 text-slate-200 placeholder:text-slate-500 font-mono leading-relaxed p-4 focus:outline-none"
+            />
+          ) : mode === "paste" ? (
             <MonacoEditor
               height="100%"
               language={language === "auto" ? "plaintext" : language}
               value={code}
               onChange={(val) => setCode(val || "")}
-              theme="vs-dark"
+              theme="devreview-dark"
+              beforeMount={(monaco) => {
+                monaco.editor.defineTheme("devreview-dark", {
+                  base: "vs-dark",
+                  inherit: true,
+                  rules: [],
+                  colors: {
+                    "editor.background": "#0b0b0d",
+                    "editor.lineHighlightBackground": "#18181c",
+                    "editorLineNumber.foreground": "#52525b",
+                    "editorLineNumber.activeForeground": "#a3abf5",
+                    "editor.selectionBackground": "#2c348099",
+                    "editorCursor.foreground": "#a3abf5",
+                  },
+                });
+              }}
               options={{
                 fontSize: 14,
                 fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
@@ -160,7 +190,7 @@ export default function ReviewPage() {
           ) : (
             <div
               onClick={() => fileRef.current?.click()}
-              className="h-full flex flex-col items-center justify-center cursor-pointer hover:bg-surface-2 transition-colors"
+              className="h-full flex flex-col items-center justify-center cursor-pointer hover:bg-surface-2 transition-colors px-6"
             >
               <input
                 ref={fileRef}
@@ -171,7 +201,7 @@ export default function ReviewPage() {
               />
               {uploadedFile ? (
                 <div className="text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-brand-700/30 flex items-center justify-center mx-auto mb-4">
+                  <div className="w-16 h-16 rounded-2xl bg-brand-600/35 flex items-center justify-center mx-auto mb-4">
                     <Code2 className="w-8 h-8 text-brand-400" />
                   </div>
                   <p className="text-white font-medium">{uploadedFile.name}</p>
@@ -184,7 +214,7 @@ export default function ReviewPage() {
                   <div className="w-16 h-16 rounded-2xl bg-surface-3 flex items-center justify-center mx-auto mb-4">
                     <Upload className="w-8 h-8 text-slate-500" />
                   </div>
-                  <p className="text-white font-medium">Click to choose a file</p>
+                  <p className="text-white font-medium">Tap to choose a file</p>
                   <p className="text-slate-400 text-sm mt-1">Max 100 KB · .py .js .ts .java .go .rs and more</p>
                 </div>
               )}
@@ -203,12 +233,12 @@ function Select({ value, onChange, options, label }: {
   label: string;
 }) {
   return (
-    <div className="relative">
+    <div className="relative flex-1 sm:flex-none">
       <select
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none pl-3 pr-8 py-1.5 bg-surface-2 border border-surface-border text-white text-sm rounded-lg cursor-pointer hover:border-brand-600/40 transition-colors focus:outline-none focus:border-brand-500"
+        className="w-full appearance-none pl-3 pr-8 h-11 sm:h-10 bg-surface-2 border border-surface-border text-white text-sm rounded-lg cursor-pointer hover:border-brand-500/60 transition-colors focus:outline-none focus:border-brand-400"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>

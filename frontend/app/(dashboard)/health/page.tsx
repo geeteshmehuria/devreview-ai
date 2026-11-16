@@ -26,7 +26,7 @@ export default function HealthPage() {
     return (
       <div className="max-w-5xl space-y-6">
         <div className="h-8 w-48 bg-surface-3 rounded animate-pulse" />
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[...Array(3)].map((_, i) => <SkeletonCard key={i} />)}
         </div>
       </div>
@@ -37,7 +37,7 @@ export default function HealthPage() {
     return (
       <div className="max-w-5xl">
         <h2 className="text-xl font-bold text-white mb-6">Repository Health</h2>
-        <div className="glass-card rounded-2xl p-12 text-center">
+        <div className="glass-card rounded-2xl p-8 sm:p-12 text-center">
           <Activity className="w-12 h-12 text-slate-600 mx-auto mb-3" />
           <p className="text-white font-medium mb-1">No analysed repositories</p>
           <p className="text-slate-400 text-sm">Import and analyse a repository to see its health score.</p>
@@ -53,7 +53,7 @@ export default function HealthPage() {
         <p className="text-slate-400 text-sm mt-1">Scores from the latest AI analysis of each repository.</p>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {analyzedRepos.map((repo, i) => {
           const score = repo.analysis_summary?.overall_score ?? 0;
           const scores = repo.analysis_summary?.scores;

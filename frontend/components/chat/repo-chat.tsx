@@ -137,12 +137,12 @@ export function RepoChat({ repoId, indexed }: { repoId: string; indexed: boolean
   const empty = !pending && messages.length === 0 && !messagesLoading;
 
   return (
-    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
       {/* Conversations */}
-      <aside className="glass-card rounded-2xl p-3 space-y-2 md:h-[calc(100vh-340px)] md:min-h-[480px] overflow-y-auto">
+      <aside className="glass-card rounded-2xl p-3 space-y-2 max-h-56 md:max-h-none md:h-[calc(100vh-340px)] md:min-h-[480px] overflow-y-auto">
         <button
           onClick={() => switchTo(null)}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors"
+          className="w-full flex items-center justify-center md:justify-start gap-2 px-3 h-10 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" /> New chat
         </button>
@@ -165,7 +165,7 @@ export function RepoChat({ repoId, indexed }: { repoId: string; indexed: boolean
                 onClick={() => {
                   if (confirm(`Delete "${s.title}"?`)) deleteMutation.mutate(s.id);
                 }}
-                className="p-2 mr-1 rounded-md text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                className="w-9 h-9 mr-1 flex items-center justify-center rounded-md text-slate-500 hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity"
                 aria-label={`Delete conversation ${s.title}`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -176,8 +176,8 @@ export function RepoChat({ repoId, indexed }: { repoId: string; indexed: boolean
       </aside>
 
       {/* Conversation */}
-      <section className="glass-card rounded-2xl flex flex-col h-[calc(100vh-340px)] min-h-[480px]">
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-5">
+      <section className="glass-card rounded-2xl flex flex-col h-[72dvh] min-h-[420px] md:h-[calc(100vh-340px)] md:min-h-[480px]">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5">
           {messagesLoading && activeId ? (
             <div className="flex justify-center py-10">
               <Loader2 className="w-6 h-6 text-brand-400 animate-spin" />
@@ -191,7 +191,7 @@ export function RepoChat({ repoId, indexed }: { repoId: string; indexed: boolean
                   Answers come from the indexed code and saved review findings, with links to the exact lines.
                 </p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2 w-full max-w-xl">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 w-full max-w-xl">
                 {EXAMPLE_QUESTIONS.map((q) => (
                   <button
                     key={q}
@@ -243,14 +243,14 @@ export function RepoChat({ repoId, indexed }: { repoId: string; indexed: boolean
             }}
             rows={2}
             maxLength={MAX_CHARS}
-            placeholder="Ask about the code… (Enter to send, Shift+Enter for a new line)"
+            placeholder="Ask about the code…"
             aria-label="Your question"
             className="flex-1 resize-none px-4 py-2.5 bg-surface-2 border border-surface-border text-white placeholder-slate-500 rounded-xl text-sm focus:outline-none focus:border-brand-500 transition-colors"
           />
           <button
             type="submit"
             disabled={streaming || !input.trim()}
-            className="flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="flex items-center justify-center w-12 h-12 shrink-0 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             aria-label="Send"
           >
             {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

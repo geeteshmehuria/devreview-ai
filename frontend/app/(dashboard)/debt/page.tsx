@@ -36,9 +36,9 @@ export default function DebtPage() {
         <p className="text-slate-400 text-sm mt-1">Debt items detected across all of your reviews and repository analyses.</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {summary.map(({ label, value, color, icon: Icon }) => (
-          <div key={label} className="glass-card rounded-2xl p-5">
+          <div key={label} className="glass-card rounded-2xl p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-slate-400">{label}</p>
               <Icon className={`w-4 h-4 ${color}`} />
@@ -48,8 +48,8 @@ export default function DebtPage() {
         ))}
       </div>
 
-      <div className="glass-card rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="glass-card rounded-2xl p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h3 className="text-white font-semibold">Debt Items</h3>
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-slate-400" />
@@ -57,7 +57,7 @@ export default function DebtPage() {
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value)}
               aria-label="Filter by severity"
-              className="px-3 py-1.5 bg-surface-2 border border-surface-border text-white text-sm rounded-lg focus:outline-none"
+              className="px-3 h-10 bg-surface-2 border border-surface-border text-white text-sm rounded-lg focus:outline-none focus:border-brand-400"
             >
               <option value="all">All Severities</option>
               {SEVERITIES.map((s) => (
@@ -103,7 +103,7 @@ export default function DebtPage() {
                 {d.recommendation && (
                   <p className="text-xs text-brand-300 mt-2"><span className="font-semibold">Fix: </span>{d.recommendation}</p>
                 )}
-                <Link href={`/history/${d.review_id}`} className="text-xs text-brand-400 hover:text-brand-300 mt-2 inline-block">
+                <Link href={`/history/${d.review_id}`} className="text-xs text-brand-400 hover:text-brand-300 mt-2 inline-block py-1 break-all">
                   From: {d.review_title || "review"}
                   {d.file_path ? ` · ${d.file_path}` : ""}
                 </Link>

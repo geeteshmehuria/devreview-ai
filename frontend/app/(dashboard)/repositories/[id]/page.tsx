@@ -47,7 +47,7 @@ export default function RepositoryDetailPage() {
     <div className="max-w-6xl space-y-5">
       <Link
         href="/repositories"
-        className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+        className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors py-2"
       >
         <ArrowLeft className="w-4 h-4" />
         Back to Repositories
@@ -57,14 +57,14 @@ export default function RepositoryDetailPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-xl font-bold text-white">{repo.full_name}</h2>
+            <h2 className="text-xl font-bold text-white break-all">{repo.full_name}</h2>
             {repo.is_private ? <Lock className="w-4 h-4 text-slate-500" /> : <Globe className="w-4 h-4 text-slate-500" />}
             {repo.language && (
               <span className="text-xs px-2 py-0.5 bg-surface-3 text-slate-400 rounded-full">{repo.language}</span>
             )}
           </div>
           {repo.description && <p className="text-slate-400 text-sm mt-1">{repo.description}</p>}
-          <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-500">
             <span className="flex items-center gap-1"><Star className="w-3 h-3" />{repo.stars}</span>
             <span className="flex items-center gap-1"><GitFork className="w-3 h-3" />{repo.forks}</span>
             {repo.last_analyzed_at && <span>Analysed {formatRelativeTime(repo.last_analyzed_at)}</span>}
@@ -92,8 +92,8 @@ export default function RepositoryDetailPage() {
             aria-selected={tab === key}
             onClick={() => setTab(key)}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-              tab === key ? "border-brand-500 text-white" : "border-transparent text-slate-400 hover:text-white",
+              "flex items-center gap-2 px-4 min-h-11 text-sm font-medium border-b-2 -mb-px transition-colors",
+              tab === key ? "border-brand-400 text-white" : "border-transparent text-slate-400 hover:text-white",
             )}
           >
             <Icon className="w-4 h-4" />
@@ -108,7 +108,7 @@ export default function RepositoryDetailPage() {
           <RepoChat repoId={repo.id} indexed={!!indexStatus?.indexed_commit_sha} />
         </div>
       ) : (
-        <div className="glass-card rounded-2xl p-5 space-y-4">
+        <div className="glass-card rounded-2xl p-4 sm:p-5 space-y-4">
           {summary ? (
             <>
               <div className="prose prose-sm prose-invert max-w-none text-slate-300">

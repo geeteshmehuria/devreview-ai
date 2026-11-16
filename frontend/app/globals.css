@@ -2,32 +2,47 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  /* ── Premium Forest Green palette ── */
-  --color-brand-50: #d8f3dc;
-  --color-brand-100: #b7e4c7;
-  --color-brand-200: #95d5b2;
-  --color-brand-300: #74c69d;
-  --color-brand-400: #52b788;
-  --color-brand-500: #40916c;
-  --color-brand-600: #2d6a4f;
-  --color-brand-700: #1b4332;
-  --color-brand-800: #081c15;
+  /* ── Cobalt palette (deep cobalt #2C3480) ──
+     500–800 are fills (buttons, badges, tints).
+     300–400 are a light cobalt "ink" for text, links and icons:
+     #2C3480 itself is too dark to read on black. */
+  --color-brand-50: #eef0fd;
+  --color-brand-100: #dce0fb;
+  --color-brand-200: #c2c8f8;
+  --color-brand-300: #c2c8f8;
+  --color-brand-400: #a3abf5;
+  --color-brand-500: #3b47b0;
+  --color-brand-600: #2c3480;
+  --color-brand-700: #232a6b;
+  --color-brand-800: #181d4d;
 
-  /* ── Surface colors (dark-first) ── */
-  --color-surface-0: #0a0f0d;
-  --color-surface-1: #0f1612;
-  --color-surface-2: #141e19;
-  --color-surface-3: #1a261f;
-  --color-surface-4: #1f2e25;
-  --color-surface-border: #2a3d32;
+  /* ── Surfaces: pure black, neutral greys ── */
+  --color-surface-0: #000000;
+  --color-surface-1: #0b0b0d;
+  --color-surface-2: #111114;
+  --color-surface-3: #18181c;
+  --color-surface-4: #1f1f24;
+  --color-surface-border: #26262c;
+
+  /* ── Neutral greys: remap slate to zinc so text has no blue/green cast,
+        and lift 500/600 so small labels stay readable on black ── */
+  --color-slate-100: #f4f4f5;
+  --color-slate-200: #e4e4e7;
+  --color-slate-300: #d4d4d8;
+  --color-slate-400: #a1a1aa;
+  --color-slate-500: #8e8e96;
+  --color-slate-600: #74747c;
+  --color-slate-700: #3f3f46;
+  --color-slate-800: #27272a;
+  --color-slate-900: #18181b;
 
   /* ── Semantic ── */
-  --color-accent: #52b788;
-  --color-accent-hover: #40916c;
-  --color-danger: #ef4444;
-  --color-warning: #f59e0b;
-  --color-success: #22c55e;
-  --color-info: #3b82f6;
+  --color-accent: #a3abf5;
+  --color-accent-hover: #c2c8f8;
+  --color-danger: #f87171;
+  --color-warning: #fbbf24;
+  --color-success: #4ade80;
+  --color-info: #a3abf5;
 
   /* ── Typography ── */
   /* --font-inter is set by next/font on <html> (its real family name is hashed) */
@@ -46,7 +61,7 @@
 
 body {
   background-color: var(--color-surface-0);
-  color: #e2e8e4;
+  color: #f4f4f5;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -54,35 +69,34 @@ body {
 
 /* ── Glassmorphism utilities ── */
 .glass {
-  background: rgba(20, 30, 25, 0.6);
+  background: rgba(11, 11, 13, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(82, 183, 136, 0.12);
+  border: 1px solid #26262c;
 }
 
 .glass-card {
-  background: rgba(15, 22, 18, 0.8);
+  background: #0b0b0d;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(82, 183, 136, 0.1);
+  border: 1px solid #26262c;
   box-shadow:
-    0 0 0 1px rgba(82, 183, 136, 0.05),
-    0 4px 24px rgba(0, 0, 0, 0.4);
+    0 1px 0 rgba(255, 255, 255, 0.02) inset;
 }
 
 .glass-hover {
   transition: all 0.2s ease;
 }
 .glass-hover:hover {
-  border-color: rgba(82, 183, 136, 0.25);
+  border-color: rgba(163, 171, 245, 0.35);
   box-shadow:
-    0 0 0 1px rgba(82, 183, 136, 0.1),
-    0 8px 32px rgba(0, 0, 0, 0.5);
+    0 0 0 1px rgba(163, 171, 245, 0.08),
+    0 8px 32px rgba(0, 0, 0, 0.6);
 }
 
 /* ── Gradient text ── */
 .gradient-text {
-  background: linear-gradient(135deg, #52b788 0%, #40916c 50%, #74c69d 100%);
+  background: linear-gradient(135deg, #c2c8f8 0%, #a3abf5 50%, #ffffff 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -104,12 +118,29 @@ pre, code {
 
 /* ── Selection ── */
 ::selection {
-  background: rgba(82, 183, 136, 0.25);
-  color: #d8f3dc;
+  background: rgba(59, 71, 176, 0.55);
+  color: #ffffff;
 }
 
 /* ── Focus ring ── */
 :focus-visible {
-  outline: 2px solid rgba(82, 183, 136, 0.6);
+  outline: 2px solid #a3abf5;
   outline-offset: 2px;
+}
+
+/* ── Mobile helpers ── */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Stop iOS zooming into inputs on focus (needs >=16px text) */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px;
+  }
 }

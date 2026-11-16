@@ -72,7 +72,7 @@ function CallbackInner() {
         animate={{ opacity: 1, scale: 1 }}
         className="text-center"
       >
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 mb-6 shadow-lg shadow-brand-700/30">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-600 mb-6 shadow-lg shadow-brand-600/30">
           <Code2 className="w-8 h-8 text-white" />
         </div>
         <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
