@@ -88,6 +88,19 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4o-mini"
     CLAUDE_MODEL: str = "claude-haiku-4-5"
 
+    # ── RAG chat (see docs/RAG.md) ─────────────────────────────────────────────
+    # Gemini only — embeddings never fall back to another provider (vectors aren't comparable).
+    EMBEDDING_MODEL: str = "gemini-embedding-001"
+    # Fixed by the vector(768) column: another size needs a migration and a full re-index, so
+    # any other value is rejected at startup instead of failing on the first insert.
+    EMBEDDING_DIM: Literal[768] = 768
+    RAG_MAX_FILE_CHARS: int = 100_000      # larger files are skipped (usually generated)
+    RAG_MAX_CHUNKS_PER_REPO: int = 3_000   # caps embedding cost and memory per index run
+    RAG_TOP_K: int = 8                     # code chunks put in the prompt
+    # Best cosine similarity below this → "low confidence". Measured on this repo (docs/RAG.md):
+    # off-topic questions 0.65–0.67, weakest on-topic 0.75.
+    RAG_MIN_SIMILARITY: float = 0.70
+
     # ── JWT ────────────────────────────────────────────────────────────────────
     JWT_SECRET_KEY: str = _DEFAULT_JWT_SECRET
     JWT_ALGORITHM: str = "HS256"

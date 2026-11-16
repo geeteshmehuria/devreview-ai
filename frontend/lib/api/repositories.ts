@@ -1,5 +1,5 @@
 import apiClient from "./client";
-import type { GitHubRepo, Repository } from "@/types";
+import type { GitHubRepo, IndexStatus, Repository } from "@/types";
 
 export const repositoriesApi = {
   add: async (repo_url: string, force_refresh = false): Promise<Repository> => {
@@ -25,7 +25,23 @@ export const repositoriesApi = {
     return data;
   },
 
+  get: async (id: string): Promise<Repository> => {
+    const { data } = await apiClient.get(`/repositories/${id}`);
+    return data;
+  },
+
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/repositories/${id}`);
+  },
+
+  /** Start (or restart) RAG indexing for chat. Returns the current state if already running. */
+  index: async (id: string): Promise<IndexStatus> => {
+    const { data } = await apiClient.post(`/repositories/${id}/index`);
+    return data;
+  },
+
+  indexStatus: async (id: string): Promise<IndexStatus> => {
+    const { data } = await apiClient.get(`/repositories/${id}/index-status`);
+    return data;
   },
 };

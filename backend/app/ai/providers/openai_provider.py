@@ -3,7 +3,7 @@
 from openai import AsyncOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.ai.base import AIProvider, ReviewRequest, ReviewResponse
+from app.ai.base import CHAT_MAX_OUTPUT_TOKENS, CHAT_TEMPERATURE, AIProvider, ReviewRequest, ReviewResponse, StreamDelta
 from app.ai.prompts import build_prompt
 from app.ai.response_formatter import format_response
 from app.core.config import get_settings
@@ -42,4 +42,23 @@ class OpenAIProvider(AIProvider):
             model=self.model_name,
             prompt_tokens=response.usage.prompt_tokens if response.usage else 0,
             completion_tokens=response.usage.completion_tokens if response.usage else 0,
+        )
+
+    async def stream_chat(self, system: str, messages: list[dict]):
+        stream = await self._client.chat.completions.create(
+            model=self.model_name,
+            messages=[{"role": "system", "content": system}, *messages],
+            temperature=CHAT_TEMPERATURE,
+            max_tokens=CHAT_MAX_OUTPUT_TOKENS,
+            stream=True,
+            stream_options={"include_usage": True},  # usage arrives in a final chunk with no choices
+        )
+        usage = None
+        async for chunk in stream:
+            usage = chunk.usage or usage
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield StreamDelta(text=chunk.choices[0].delta.content)
+        yield StreamDelta(
+            prompt_tokens=usage.prompt_tokens if usage else None,
+            completion_tokens=usage.completion_tokens if usage else None,
         )

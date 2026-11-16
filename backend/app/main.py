@@ -26,7 +26,7 @@ from app.core.database import AsyncSessionLocal
 from app.core.exceptions import AppException
 from app.models.repository import Repository, RepositoryStatus
 from app.core.rate_limit import limiter
-from app.routers import auth, repositories, reviews, pull_requests
+from app.routers import auth, chat, repositories, reviews, pull_requests
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -136,6 +136,7 @@ app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(repositories.router, prefix=API_PREFIX)
 app.include_router(reviews.router, prefix=API_PREFIX)
 app.include_router(pull_requests.router, prefix=API_PREFIX)
+app.include_router(chat.router, prefix=API_PREFIX)
 
 
 # ── Health check ───────────────────────────────────────────────────────────────

@@ -151,3 +151,42 @@ export interface DebtItem {
   recommendation: string | null;
   created_at: string | null;
 }
+
+// ── Repo chat (RAG) ───────────────────────────────────────────────────────────
+
+export type IndexState = "not_indexed" | "indexing" | "indexed" | "failed";
+
+export interface IndexStatus {
+  index_status: IndexState;
+  chunk_count: number;
+  indexed_commit_sha: string | null;
+  indexed_at: string | null;
+  index_error: string | null;
+}
+
+/** A source the answer cited as [n]: a code chunk, or a saved review finding. */
+export interface ChatCitation {
+  n: number;
+  kind: "code" | "finding";
+  file_path: string | null;
+  start_line: number | null;
+  end_line: number | null;
+  url: string | null;
+  title: string | null;
+}
+
+export interface ChatSession {
+  id: string;
+  repository_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  citations: ChatCitation[] | null;
+  created_at: string;
+}

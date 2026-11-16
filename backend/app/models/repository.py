@@ -4,9 +4,10 @@ A repository belongs to one user and accumulates health snapshots over time.
 """
 
 import uuid
+from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,6 +19,14 @@ class RepositoryStatus(StrEnum):
     PENDING = "pending"
     ANALYZING = "analyzing"
     ANALYZED = "analyzed"
+    FAILED = "failed"
+
+
+class IndexStatus(StrEnum):
+    """RAG indexing state — separate from analysis status, the two jobs run independently."""
+    NOT_INDEXED = "not_indexed"
+    INDEXING = "indexing"
+    INDEXED = "indexed"
     FAILED = "failed"
 
 
@@ -55,6 +64,15 @@ class Repository(Base, UUIDMixin, TimestampMixin):
     # Cached analysis results (JSONB for flexible schema evolution)
     analysis_summary: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
 
+    # RAG index state (see app/rag/)
+    index_status: Mapped[str] = mapped_column(
+        String(20), default=IndexStatus.NOT_INDEXED, server_default=IndexStatus.NOT_INDEXED.value, nullable=False
+    )
+    indexed_commit_sha: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    indexed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    index_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+
     # Relationships — passive_deletes lets the DB's ON DELETE rules handle children,
     # so deleting a repository never lazy-loads collections in the async session.
     owner: Mapped["User"] = relationship("User", back_populates="repositories")  # noqa: F821
@@ -69,6 +87,12 @@ class Repository(Base, UUIDMixin, TimestampMixin):
     )
     reviews: Mapped[list["Review"]] = relationship(  # noqa: F821
         "Review", back_populates="repository", passive_deletes=True
+    )
+    code_chunks: Mapped[list["CodeChunk"]] = relationship(  # noqa: F821
+        "CodeChunk", back_populates="repository", passive_deletes=True
+    )
+    chat_sessions: Mapped[list["ChatSession"]] = relationship(  # noqa: F821
+        "ChatSession", back_populates="repository", passive_deletes=True
     )
 
     def __repr__(self) -> str:

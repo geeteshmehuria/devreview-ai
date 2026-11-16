@@ -1,12 +1,14 @@
 /**
  * Axios-based API client with automatic token refresh and auth header injection.
- * All API calls go through this — never use fetch directly.
+ * All API calls go through this — never use fetch directly. The one exception is the
+ * streaming chat helper in lib/api/chat.ts (axios can't stream in the browser); it reuses
+ * refreshAccessToken() and handleAuthFailure() from here.
  */
 
 import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 import { clearSession, getAccessToken, getRefreshToken, saveSession } from "@/lib/session";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 /** AI reviews can take a while (large inputs + provider fallback). */
 export const AI_TIMEOUT_MS = 180_000;
@@ -67,22 +69,18 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = getRefreshToken();
-      if (!refreshToken) {
+      if (!getRefreshToken()) {
         isRefreshing = false;
         handleAuthFailure();
         return Promise.reject(error);
       }
 
       try {
-        const { data } = await axios.post(`${API_URL}/api/v1/auth/refresh`, {
-          refresh_token: refreshToken,
-        });
-        saveSession(data.access_token, data.refresh_token);
-        processQueue(null, data.access_token);
+        const accessToken = await refreshAccessToken();
+        processQueue(null, accessToken);
 
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         }
         return apiClient(originalRequest);
       } catch (refreshError) {
@@ -98,7 +96,26 @@ apiClient.interceptors.response.use(
   }
 );
 
-function handleAuthFailure() {
+let refreshInFlight: Promise<string> | null = null;
+
+/**
+ * Exchange the refresh token for a new token pair and store it. Concurrent callers share one
+ * request, so the axios interceptor and the chat stream never refresh twice at once.
+ */
+export function refreshAccessToken(): Promise<string> {
+  refreshInFlight ??= (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) throw new Error("Not signed in");
+    const { data } = await axios.post(`${API_URL}/api/v1/auth/refresh`, { refresh_token: refreshToken });
+    saveSession(data.access_token, data.refresh_token);
+    return data.access_token as string;
+  })().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+export function handleAuthFailure() {
   clearSession();
   if (typeof window !== "undefined" && window.location.pathname !== "/login") {
     window.location.href = "/login";

@@ -1,5 +1,7 @@
 """Repository schemas."""
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -43,6 +45,18 @@ class HealthSnapshotOut(BaseModel):
     complexity_score: float
     breakdown: dict | None
     created_at: str
+
+    model_config = {"from_attributes": True}
+
+
+class IndexStatusOut(BaseModel):
+    """RAG index state of a repository (see docs/RAG.md)."""
+
+    index_status: str
+    chunk_count: int
+    indexed_commit_sha: str | None
+    indexed_at: datetime | None
+    index_error: str | None
 
     model_config = {"from_attributes": True}
 
