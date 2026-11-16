@@ -95,7 +95,9 @@ class Settings(BaseSettings):
     # any other value is rejected at startup instead of failing on the first insert.
     EMBEDDING_DIM: Literal[768] = 768
     RAG_MAX_FILE_CHARS: int = 100_000      # larger files are skipped (usually generated)
-    RAG_MAX_CHUNKS_PER_REPO: int = 3_000   # caps embedding cost and memory per index run
+    # Caps embedding cost and memory per index run. 900 keeps one run (plus chat questions) inside
+    # Gemini's free tier of 1000 embedded texts/day; raise it on a paid key.
+    RAG_MAX_CHUNKS_PER_REPO: int = 900
     RAG_TOP_K: int = 8                     # code chunks put in the prompt
     # Best cosine similarity below this → "low confidence". Measured on this repo (docs/RAG.md):
     # off-topic questions 0.65–0.67, weakest on-topic 0.75.

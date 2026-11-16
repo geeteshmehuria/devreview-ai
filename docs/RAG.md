@@ -223,7 +223,7 @@ mangles code identifiers.
   That's acceptable here because only that repo's chunk rows are locked.
 - **Skip unchanged repos** with one GitHub API call (`HEAD sha == indexed_commit_sha`), before any
   clone or embedding cost.
-- `RAG_MAX_CHUNKS_PER_REPO` (default 3000) caps cost and memory. *Shortcut:* files are walked in
+- `RAG_MAX_CHUNKS_PER_REPO` (default 900) caps cost and memory. *Shortcut:* files are walked in
   alphabetical order, so the cap drops whatever comes last. Ranking files (source before tests)
   would be better if real repos hit the cap.
 - `content_hash` is stored for a future improvement: incremental re-indexing that only re-embeds
@@ -243,7 +243,8 @@ text in a batch counts as one request. Indexing this repo (569 chunks) twice in 
 That has some consequences:
 
 - One free-tier key can index about **one medium repo per day**, and every chat question also
-  spends one embedding. `RAG_MAX_CHUNKS_PER_REPO = 3000` is only reachable on a paid key.
+  spends one embedding. The default `RAG_MAX_CHUNKS_PER_REPO = 900` keeps one index run inside that limit; raise it on a
+  paid key.
 - **A daily-quota 429 is not retried.** Per-minute rate limits clear in seconds, so those are still
   retried with backoff. A per-day limit clears in hours, so the embedder now fails immediately with
   a clear message ("daily embedding quota is used up…"), which the UI shows as `index_error`.
@@ -335,9 +336,9 @@ With 569 rows, `EXPLAIN` shows Postgres choosing a **sequential scan + sort** (e
 than the HNSW index, because reading 569 rows is cheaper. As the table grows (many repos), the planner
 switches to HNSW. Then a known pgvector caveat applies: the index finds the nearest ~40 vectors
 (`hnsw.ef_search`) *across all repos* and the `WHERE repository_id = …` filter runs afterwards, so a
-small repo among many big ones can get fewer than 20 results. Fixes, in order of effort: raise
-`hnsw.ef_search`, use pgvector 0.8's `SET hnsw.iterative_scan = relaxed_order`, or partition
-`code_chunks` by repository.
+small repo among many big ones can get fewer than 20 results. `vector_search` therefore runs
+`SET LOCAL hnsw.iterative_scan = strict_order` (pgvector 0.8+), which keeps scanning until enough
+rows pass the filter; on older pgvector it falls back to the plain post-filtered scan.
 
 ### Evaluation
 
@@ -628,7 +629,7 @@ Redacted values showed as `[REDACTED]`.
 | `RAG_TOP_K` | `8` | enough context for cross-file answers, small enough to keep prompts cheap |
 | `RAG_MIN_SIMILARITY` | `0.70` | measured: off-topic ≈ 0.65, weakest on-topic 0.75 (Phase 3) |
 | `RAG_MAX_FILE_CHARS` | `100000` | bigger files are almost always generated |
-| `RAG_MAX_CHUNKS_PER_REPO` | `3000` | caps cost/memory; note the free tier embeds only 1000 texts/day |
+| `RAG_MAX_CHUNKS_PER_REPO` | `900` | caps cost/memory; note the free tier embeds only 1000 texts/day |
 
 ### Deployment notes (details in DEPLOYMENT.md)
 

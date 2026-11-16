@@ -57,7 +57,7 @@ def collect_chunks(root: Path, max_file_chars: int, max_chunks: int) -> list[Chu
         text = _read_sample(root, path, max_chars=max_file_chars + 1)
         if text is None or not should_index_content(text, max_file_chars):
             continue
-        chunks.extend(chunk_file(rel_posix, redact_secrets(text)))
+        chunks.extend(chunk_file(rel_posix, redact_secrets(text, rel_posix)))
         if len(chunks) >= max_chunks:
             # shortcut: files are walked alphabetically, so the cap drops whatever comes last; rank
             # files (README/src first, tests/docs last) if real repos start hitting it.

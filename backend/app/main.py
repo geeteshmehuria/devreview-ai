@@ -24,7 +24,7 @@ from sqlalchemy import update
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.exceptions import AppException
-from app.models.repository import Repository, RepositoryStatus
+from app.models.repository import IndexStatus, Repository, RepositoryStatus
 from app.core.rate_limit import limiter
 from app.routers import auth, chat, repositories, reviews, pull_requests
 
@@ -44,6 +44,15 @@ async def lifespan(app: FastAPI):
                 update(Repository)
                 .where(Repository.status == RepositoryStatus.ANALYZING)
                 .values(status=RepositoryStatus.FAILED)
+            )
+            # Same for chat indexing: without this the UI shows "Indexing…" for 30 minutes.
+            await session.execute(
+                update(Repository)
+                .where(Repository.index_status == IndexStatus.INDEXING)
+                .values(
+                    index_status=IndexStatus.FAILED,
+                    index_error="Indexing was interrupted by a server restart. Please try again.",
+                )
             )
             await session.commit()
     except Exception as e:

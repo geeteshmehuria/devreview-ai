@@ -62,11 +62,21 @@ _SECRET_PATTERNS = [
     re.compile(r"\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"),  # JWTs
 ]
 # password = "hunter2hunter2" → keep the name, hide the quoted literal (calls like get_password() stay).
+_SECRET_NAME = r"[\w.-]*(?:secret|password|passwd|pwd|token|api[_-]?key|access[_-]?key|private[_-]?key|credentials?)[\w.-]*"
 _ASSIGNMENT = re.compile(
-    r"""(?ix)
-    (\b[\w.-]*(?:secret|password|passwd|pwd|token|api[_-]?key|access[_-]?key|private[_-]?key|credentials?)[\w.-]*
+    rf"""(?ix)
+    (\b{_SECRET_NAME}
      ["']?\s*[:=]\s*)
-    (["'])([^"'\s]{8,})\2
+    (["'])([^"'\s]{{8,}})\2
+    """
+)
+# Config files rarely quote values: `db_password: hunter2hunter2`. Only applied to these file
+# types, because in code an unquoted right-hand side is an expression (token = get_token()).
+CONFIG_EXTENSIONS = {".yaml", ".yml", ".ini", ".cfg", ".toml"}
+_CONFIG_ASSIGNMENT = re.compile(
+    rf"""(?imx)
+    ^(\s*-?\s*{_SECRET_NAME}\s*[:=]\s*)
+    ([^\s"'${{<|>\#\[][^\s\#]{{7,}})   # not quoted, not a ${{VAR}} / {{{{template}}}} / block scalar / list
     """
 )
 _URL_CREDENTIALS = re.compile(r"(\b[a-z][a-z0-9+.\-]*://)[^/\s:@]+:[^/\s@]+@", re.IGNORECASE)
@@ -85,8 +95,17 @@ def _redact_assignment(match: re.Match) -> str:
     return f"{name}{quote}{REDACTED}{quote}"
 
 
-def redact_secrets(text: str) -> str:
+def _redact_config_assignment(match: re.Match) -> str:
+    name, value = match.groups()
+    if value.lower().startswith(("http://", "https://")):
+        return match.group(0)
+    return f"{name}{REDACTED}"
+
+
+def redact_secrets(text: str, path: str = "") -> str:
     for pattern in _SECRET_PATTERNS:
         text = pattern.sub(_keep_newlines, text)
     text = _ASSIGNMENT.sub(_redact_assignment, text)
+    if PurePosixPath(path).suffix.lower() in CONFIG_EXTENSIONS:
+        text = _CONFIG_ASSIGNMENT.sub(_redact_config_assignment, text)
     return _URL_CREDENTIALS.sub(lambda m: f"{m.group(1)}{REDACTED}@", text)

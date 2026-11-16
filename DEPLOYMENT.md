@@ -106,7 +106,7 @@ Indexing for repo chat (`POST /repositories/{id}/index`) also runs as an in-proc
 background task. On the free plan:
 
 - **512 MB RAM.** Indexing embeds and inserts chunks in batches of 100, so only
-  ~100 vectors are in memory at a time. `RAG_MAX_CHUNKS_PER_REPO` (default 3000) and
+  ~100 vectors are in memory at a time. `RAG_MAX_CHUNKS_PER_REPO` (default 900) and
   `RAG_MAX_FILE_CHARS` (default 100000) cap the work per repo. Lower them if the
   service gets OOM-killed on very large repos.
 - **The service sleeps when idle** (~15 min). A sleeping service isn't indexing
@@ -190,7 +190,7 @@ Repo chat (RAG) — all optional, defaults shown:
 | `RAG_TOP_K` | `8` | code chunks put in the prompt per question |
 | `RAG_MIN_SIMILARITY` | `0.70` | best cosine similarity below this → "low confidence" |
 | `RAG_MAX_FILE_CHARS` | `100000` | larger files are skipped |
-| `RAG_MAX_CHUNKS_PER_REPO` | `3000` | caps embedding cost and memory per index run |
+| `RAG_MAX_CHUNKS_PER_REPO` | `900` | caps embedding cost and memory per index run |
 
 ### Frontend (Vercel)
 
