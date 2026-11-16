@@ -49,6 +49,9 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-devreview}:${POSTGRES_PASSWORD:-devreview_secret}@db:5432/${POSTGRES_DB:-devreview_ai}
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis_secret}@redis:6379/0
+      # embedded (default): this container also runs the ARQ job worker.
+      # To run the worker as its own container: WORKER_MODE=external docker compose --profile worker up
+      WORKER_MODE: ${WORKER_MODE:-embedded}
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -59,6 +62,31 @@ services:
     volumes:
       - ./backend:/app
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  # Separate ARQ worker — only started with `--profile worker` (and WORKER_MODE=external on the API).
+  worker:
+    profiles: ["worker"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: devreview_worker
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-devreview}:${POSTGRES_PASSWORD:-devreview_secret}@db:5432/${POSTGRES_DB:-devreview_ai}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_secret}@redis:6379/0
+      WORKER_MODE: external
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started  # the API container runs the migrations
+    volumes:
+      - ./backend:/app
+    command: arq app.jobs.worker.WorkerSettings
 
   frontend:
     build:

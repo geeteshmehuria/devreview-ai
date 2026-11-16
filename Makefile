@@ -1,4 +1,4 @@
-.PHONY: up up-d down build logs migrate migration test-backend test-frontend test-e2e test install-frontend install-backend clean docs
+.PHONY: up up-d up-worker worker down build logs migrate migration test-backend test-frontend test-e2e test install-frontend install-backend clean docs
 
 ## Start all services
 up:
@@ -7,6 +7,14 @@ up:
 ## Start in background
 up-d:
 	docker compose up -d --build
+
+## Start everything with the job worker in its own container
+up-worker:
+	WORKER_MODE=external docker compose --profile worker up
+
+## Run the job worker locally (outside Docker; set WORKER_MODE=external for the API too)
+worker:
+	cd backend && WORKER_MODE=external arq app.jobs.worker.WorkerSettings
 
 ## Stop all services
 down:

@@ -74,3 +74,27 @@ async def cache_set(
         await redis.setex(_key(namespace, *parts), ttl, json.dumps(value))
     except (aioredis.RedisError, OSError) as e:
         logger.warning("cache_unavailable", op="set", error=str(e))
+
+
+# ── Pub/sub (live events) ──────────────────────────────────────────────────────
+
+_pubsub_pool: aioredis.ConnectionPool | None = None
+
+
+def get_pubsub_pool() -> aioredis.ConnectionPool:
+    """Separate pool for long-lived SSE subscriptions.
+
+    The cache pool's 2s socket timeout would cut an idle subscription, and each open browser
+    tab holds one connection here, so keeping them apart stops live updates starving the cache.
+    """
+    global _pubsub_pool
+    if _pubsub_pool is None:
+        _pubsub_pool = aioredis.ConnectionPool.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            max_connections=50,
+            socket_connect_timeout=2,
+            # No health_check_interval: its PINGs would cost metered Redis commands every 30s per
+            # open tab. A dropped connection ends the stream and the browser reconnects instead.
+        )
+    return _pubsub_pool

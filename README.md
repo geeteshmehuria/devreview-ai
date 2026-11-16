@@ -39,7 +39,7 @@ Under the hood it is a production-grade full-stack application demonstrating:
 - **Backend Engineering** — FastAPI with layered architecture (routers → services → models)
 - **AI Integration** — Provider abstraction layer (Gemini primary, OpenAI + Claude runtime fallbacks)
 - **Database Design** — PostgreSQL with 10-table relational schema, UUID PKs, JSONB columns
-- **System Design** — Redis caching, background analysis tasks, token refresh rotation
+- **System Design** — Redis caching, ARQ job queue with live SSE job events, token refresh rotation
 - **Security** — GitHub OAuth with signed state, encrypted GitHub tokens, JWT refresh rotation, rate limiting
 - **Performance** — Query caching, lazy loading, dynamic imports, connection pooling
 - **Testing** — Vitest + RTL (frontend), Pytest (backend), Playwright E2E
@@ -225,7 +225,7 @@ provider, prompt-injection handling, SSE streaming) is explained in **[docs/RAG.
 | Component | Technology |
 |---|---|
 | Containerisation | Docker + Docker Compose |
-| Background Jobs | FastAPI BackgroundTasks (repository analysis, repo chat indexing) |
+| Background Jobs | ARQ worker (repository analysis, repo chat indexing) + live updates over SSE / Redis pub/sub |
 | CI | GitHub Actions (configured) |
 
 ---
@@ -398,11 +398,11 @@ GET    /api/v1/reviews                 List review history (paginated)
 GET    /api/v1/reviews/debt            Technical-debt items across all reviews
 GET    /api/v1/reviews/{id}            Get review detail + findings
 
-POST   /api/v1/repositories            Import a GitHub repository (analysis runs in background)
+POST   /api/v1/repositories            Import a GitHub repository (analysis queued as a job)
 GET    /api/v1/repositories            List user's repositories
 POST   /api/v1/repositories/{id}/analyze  Trigger re-analysis
 DELETE /api/v1/repositories/{id}       Remove a repository
-POST   /api/v1/repositories/{id}/index        Build the chat index (background job)
+POST   /api/v1/repositories/{id}/index        Queue a chat index build (result arrives on /events)
 GET    /api/v1/repositories/{id}/index-status Index state, chunk count, commit, error
 
 POST   /api/v1/repositories/{id}/chat/sessions   Start a chat about a repository
@@ -412,6 +412,8 @@ POST   /api/v1/chat/sessions/{id}/messages       Ask — answer streams as Serve
 DELETE /api/v1/chat/sessions/{id}                Delete a chat
 
 POST   /api/v1/pull-requests/review    Review a GitHub PR by URL
+
+GET    /api/v1/events                  Live job results for the current user (Server-Sent Events)
 ```
 
 ---
@@ -433,8 +435,8 @@ Stolen refresh tokens are immediately invalidated on next use. The previous refr
 **Why Gemini as the primary provider?**
 Gemini has the most generous free tier, making portfolio demos cost-free. The provider abstraction means swapping to GPT-4o or Claude is a one-line config change.
 
-**Why background tasks for repository analysis?**
-Cloning and analysing a repository takes 30–120 seconds. FastAPI's `BackgroundTasks` returns the HTTP response immediately while analysis runs, keeping the API responsive.
+**Why a job queue for repository analysis and indexing?**
+Cloning, analysing and embedding a repository takes 30 seconds to several minutes. Jobs go to an ARQ queue in Redis, so a deploy or restart doesn't lose them (cut-off runs are resumed), duplicates are ignored, and concurrency is capped for the 512 MB instance. The worker runs inside the API on the free tier and can move to its own service with one setting. Results reach the browser as Server-Sent Events over Redis pub/sub instead of status polling. Details: [docs/JOBS.md](docs/JOBS.md).
 
 ---
 

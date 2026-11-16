@@ -108,7 +108,7 @@ will be kept inside the retriever (Phase 3) and mocked in tests.
 ### What was built
 
 ```
-POST /repositories/{id}/index ──► set index_status=indexing, commit ──► BackgroundTask
+POST /repositories/{id}/index ──► set index_status=indexing, commit ──► ARQ job (docs/JOBS.md)
                                                                           │
   GitHub API: HEAD sha == indexed_commit_sha? ── yes ──► done (no clone, no embedding cost)
                                                                           │ no
@@ -233,8 +233,9 @@ mangles code identifiers.
 
 - Only the default branch is indexed.
 - Notebooks, and languages other than Python/JS/TS, use window chunking (no symbol names).
-- Indexing runs in FastAPI `BackgroundTasks` inside the web process. A restart kills it; the
-  30-minute rule and the safe retry handle that. A real job queue would be the next step at scale.
+- Indexing runs as an ARQ job (see docs/JOBS.md). Originally it was a FastAPI `BackgroundTask`
+  that a restart killed; now a cut-off run is resumed from the queue, and the 30-minute rule is
+  only a last resort.
 
 ### Free-tier quota (found while building Phase 3)
 
@@ -543,7 +544,7 @@ and `X-Accel-Buffering: no` for proxies.
 | File | Job |
 |---|---|
 | `app/(dashboard)/repositories/[id]/page.tsx` | Repo detail page: repo info, **Chat** and **Overview** tabs |
-| `components/chat/index-status-panel.tsx` | Index button, status badge, chunk count, commit, error; polls while indexing |
+| `components/chat/index-status-panel.tsx` | Index button, status badge, chunk count, commit, error; live updates via the events stream (slow fallback poll while indexing) |
 | `components/chat/repo-chat.tsx` | Conversation list (new / select / delete), messages, streaming, example questions |
 | `components/chat/chat-message.tsx` | One message: Markdown (`react-markdown` + GFM), citation chips, not-found / low-confidence / error states |
 | `components/chat/citation-chip.tsx` | `[n] path:L10-L42` chip that opens the SHA-pinned GitHub link in a new tab |
@@ -573,9 +574,9 @@ one refresh-token hash, so a double refresh would sign the user out.)
 
 ### UI behaviour
 
-- **Index panel** reuses the repositories page's polling pattern: TanStack Query
-  `refetchInterval` returns 3 s while `index_status === "indexing"`, and `false` otherwise, so the
-  page doesn't poll forever.
+- **Index panel** gets the result of an indexing run as a live `index_status` event (SSE,
+  docs/JOBS.md), written straight into its TanStack Query cache. While indexing it still polls as a
+  fallback: every 60 s when the event stream is connected, every 3 s when it isn't.
 - **Chat is enabled once `indexed_commit_sha` is set**, not only when the status is `indexed`.
   During a re-index (or after a failed one) the previous index still answers, matching the backend.
 - **Streaming state.** The question being answered lives in local state (`pending`) and grows with

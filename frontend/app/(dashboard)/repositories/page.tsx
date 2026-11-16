@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { repositoriesApi } from "@/lib/api/repositories";
 import { formatRelativeTime, getScoreColor } from "@/lib/utils";
 import { SkeletonCard } from "@/components/shared/skeleton";
+import { useLiveEventsConnected } from "@/components/providers/live-events-provider";
 import type { GitHubRepo, Repository } from "@/types";
 
 const IN_PROGRESS: Repository["status"][] = ["pending", "analyzing"];
@@ -17,13 +18,14 @@ export default function RepositoriesPage() {
   const [repoUrl, setRepoUrl] = useState("");
   const [showForm, setShowForm] = useState(false);
   const qc = useQueryClient();
+  const live = useLiveEventsConnected();
 
   const { data: repos = [], isLoading } = useQuery({
     queryKey: ["repositories"],
     queryFn: repositoriesApi.list,
-    // Poll while any analysis is running so status and score update without a reload.
+    // Analysis results arrive as live events; polling is only a fallback while one is running.
     refetchInterval: (query) =>
-      query.state.data?.some((r) => IN_PROGRESS.includes(r.status)) ? 5_000 : false,
+      query.state.data?.some((r) => IN_PROGRESS.includes(r.status)) ? (live ? 60_000 : 5_000) : false,
   });
 
   // Show the analysis as running immediately; polling then tracks the real status.

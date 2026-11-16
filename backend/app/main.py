@@ -4,7 +4,7 @@ DevReview AI — FastAPI application entry point.
 Architecture notes:
 - Exception handlers convert AppExceptions to HTTP responses without leaking stack traces
 - CORS is configured from env to support both local dev and production domains
-- Lifespan handles startup/shutdown of shared resources (Redis pool, etc.)
+- Lifespan handles startup/shutdown of shared resources and, in embedded mode, the ARQ worker
 - All routes are versioned under /api/v1
 """
 
@@ -19,14 +19,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from sqlalchemy import update
-
 from app.core.config import get_settings
-from app.core.database import AsyncSessionLocal
 from app.core.exceptions import AppException
-from app.models.repository import IndexStatus, Repository, RepositoryStatus
 from app.core.rate_limit import limiter
-from app.routers import auth, chat, repositories, reviews, pull_requests
+from app.jobs.queue import close_queue, get_queue
+from app.jobs.worker import reconcile_stale_jobs, start_embedded_worker, stop_embedded_worker
+from app.routers import auth, chat, events, repositories, reviews, pull_requests
 
 logger = structlog.get_logger()
 settings = get_settings()
@@ -35,29 +33,19 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
-    logger.info("startup", env=settings.APP_ENV, debug=settings.DEBUG)
-    # Analyses run in-process, so any still marked "analyzing" died with the last process.
-    # shortcut: assumes a single instance; with several, track a job heartbeat instead.
+    logger.info("startup", env=settings.APP_ENV, debug=settings.DEBUG, worker_mode=settings.WORKER_MODE)
+    # Repos still marked "indexing"/"analyzing" whose job no longer exists (e.g. Redis restarted)
+    # would show a spinner forever. Jobs that still exist are left alone — the worker resumes them.
     try:
-        async with AsyncSessionLocal() as session:
-            await session.execute(
-                update(Repository)
-                .where(Repository.status == RepositoryStatus.ANALYZING)
-                .values(status=RepositoryStatus.FAILED)
-            )
-            # Same for chat indexing: without this the UI shows "Indexing…" for 30 minutes.
-            await session.execute(
-                update(Repository)
-                .where(Repository.index_status == IndexStatus.INDEXING)
-                .values(
-                    index_status=IndexStatus.FAILED,
-                    index_error="Indexing was interrupted by a server restart. Please try again.",
-                )
-            )
-            await session.commit()
+        await reconcile_stale_jobs(await get_queue())
     except Exception as e:
-        logger.warning("stale_analysis_reset_failed", error=str(e))
+        logger.warning("stale_jobs_reconcile_failed", error=str(e))
+    if settings.WORKER_MODE == "embedded":
+        start_embedded_worker()
     yield
+    if settings.WORKER_MODE == "embedded":
+        await stop_embedded_worker()  # running jobs are re-queued for the next process
+    await close_queue()
     logger.info("shutdown")
 
 
@@ -146,6 +134,7 @@ app.include_router(repositories.router, prefix=API_PREFIX)
 app.include_router(reviews.router, prefix=API_PREFIX)
 app.include_router(pull_requests.router, prefix=API_PREFIX)
 app.include_router(chat.router, prefix=API_PREFIX)
+app.include_router(events.router, prefix=API_PREFIX)
 
 
 # ── Health check ───────────────────────────────────────────────────────────────

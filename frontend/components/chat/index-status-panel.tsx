@@ -5,6 +5,8 @@ import { AlertTriangle, Database, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { repositoriesApi } from "@/lib/api/repositories";
 import { formatRelativeTime } from "@/lib/utils";
+import { indexStatusKey } from "@/lib/query-keys";
+import { useLiveEventsConnected } from "@/components/providers/live-events-provider";
 import type { IndexState, IndexStatus } from "@/types";
 
 const BADGE: Record<IndexState, { label: string; className: string }> = {
@@ -14,16 +16,21 @@ const BADGE: Record<IndexState, { label: string; className: string }> = {
   failed: { label: "Failed", className: "bg-red-500/10 text-red-400 border-red-500/30" },
 };
 
-export function indexStatusKey(repoId: string) {
-  return ["index-status", repoId];
-}
+export { indexStatusKey };
 
-/** Shared query so the chat can tell whether the repo is indexed. Polls only while indexing. */
+/**
+ * Shared query so the chat can tell whether the repo is indexed.
+ * The result of an indexing run arrives as a live event (LiveEventsProvider writes it into this
+ * query). Polling is only a fallback while indexing: slow when the event stream is connected,
+ * fast when it isn't.
+ */
 export function useIndexStatus(repoId: string) {
+  const live = useLiveEventsConnected();
   return useQuery({
     queryKey: indexStatusKey(repoId),
     queryFn: () => repositoriesApi.indexStatus(repoId),
-    refetchInterval: (query) => (query.state.data?.index_status === "indexing" ? 3_000 : false),
+    refetchInterval: (query) =>
+      query.state.data?.index_status === "indexing" ? (live ? 60_000 : 3_000) : false,
   });
 }
 
@@ -34,7 +41,7 @@ export function IndexStatusPanel({ repoId }: { repoId: string }) {
   const indexMutation = useMutation({
     mutationFn: () => repositoriesApi.index(repoId),
     onSuccess: (s: IndexStatus) => {
-      qc.setQueryData(indexStatusKey(repoId), s); // starts polling straight away
+      qc.setQueryData(indexStatusKey(repoId), s); // shows "Indexing…" until the job's event arrives
       toast.success("Indexing started. This can take a few minutes.");
     },
     onError: (e: Error) => toast.error(e.message || "Failed to start indexing"),

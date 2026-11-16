@@ -1,6 +1,6 @@
 # Deployment Guide — DevReview AI
 
-Backend → **Render** (FastAPI + Key Value/Redis)
+Backend → **Render** (FastAPI + embedded ARQ job worker) · Redis → **Upstash**
 Database → **Neon** (Postgres, free tier — unlike Render's free Postgres it does not expire)
 Frontend → **Vercel** (Next.js)
 
@@ -66,18 +66,28 @@ The schema uses an HNSW index, which needs pgvector ≥ 0.5 (Neon ships newer).
 
 ## 2. Backend on Render
 
-The repo ships a **Render Blueprint** (`render.yaml`) that provisions two
-resources: the API web service and a Key Value (Redis) instance, wired together.
+The repo ships a **Render Blueprint** (`render.yaml`) that provisions the API web service.
+The API also runs the background job worker (see [docs/JOBS.md](docs/JOBS.md)).
+
+**Redis comes from Upstash, not Render.** Queued jobs live in Redis, and Render's free Key Value
+is in-memory only (a restart there loses them). Upstash's free tier saves to disk:
+
+- Create a free database at [upstash.com](https://upstash.com) (region close to your Render region).
+- Copy the **TCP** connection string: `rediss://default:<password>@<host>.upstash.io:6379`.
+- Free tier: 500K commands/month. `render.yaml` sets `WORKER_POLL_DELAY_SECONDS=15` to stay
+  inside it — see the command budget in docs/JOBS.md.
 
 1. Push this repo to GitHub (see section 5 if you haven't committed yet).
 2. Render Dashboard → **New → Blueprint** → connect the repo → **Apply**.
-3. Render creates `devreview-api` and `devreview-redis`.
-   `REDIS_URL` and `JWT_SECRET_KEY` are filled in automatically.
+3. Render creates `devreview-api`. `JWT_SECRET_KEY` is filled in automatically.
+   (Upgrading from an older blueprint that created `devreview-redis`: once `REDIS_URL` points at
+   Upstash, that Key Value instance is unused — delete it in the dashboard.)
 4. Open **devreview-api → Environment** and set the values marked `sync: false`:
 
    | Variable | Value |
    |---|---|
    | `DATABASE_URL` | Neon connection string from step 1 |
+   | `REDIS_URL` | Upstash `rediss://…` connection string |
    | `GITHUB_CLIENT_ID` | from your production GitHub OAuth app |
    | `GITHUB_CLIENT_SECRET` | from your production GitHub OAuth app |
    | `GITHUB_CALLBACK_URL` | `https://<your-frontend>.vercel.app/callback` |
@@ -96,14 +106,15 @@ Notes:
   `postgresql+asyncpg://` driver in `app/core/config.py`, so no manual edit is needed.
 - Free Render web services sleep after inactivity; the first request after idle
   is slow. Upgrade the plan to avoid cold starts.
-- Repository analysis runs in-process as a FastAPI background task (it clones
-  the repo into a temp dir), so a free instance's 512 MB limits repo size.
+- Repository analysis and indexing run on the ARQ worker inside the API process
+  (`WORKER_MODE=embedded`). `WORKER_MAX_JOBS=1` keeps one clone/embedding job in the
+  512 MB instance at a time. A separate worker service is a config change (docs/JOBS.md).
 - uvicorn runs with `--proxy-headers` so the rate limiter sees real client IPs.
 
 ### Render free tier and repo chat indexing
 
-Indexing for repo chat (`POST /repositories/{id}/index`) also runs as an in-process
-background task. On the free plan:
+Indexing for repo chat (`POST /repositories/{id}/index`) is queued and run by the worker inside
+the API process. On the free plan:
 
 - **512 MB RAM.** Indexing embeds and inserts chunks in batches of 100, so only
   ~100 vectors are in memory at a time. `RAG_MAX_CHUNKS_PER_REPO` (default 900) and
@@ -111,8 +122,9 @@ background task. On the free plan:
   service gets OOM-killed on very large repos.
 - **The service sleeps when idle** (~15 min). A sleeping service isn't indexing
   anything, and the first request after waking is slow.
-- **A restart or redeploy kills a running indexing job.** That's safe:
-  - the job replaces a repo's chunks in **one transaction**, so a killed job leaves
+- **A restart or redeploy interrupts a running indexing job.** That's safe:
+  - the job stays in Redis and the next process resumes it (ARQ re-queues cut-off runs);
+  - the job replaces a repo's chunks in **one transaction**, so an interrupted run leaves
     the previous index untouched and chat keeps working on it;
   - a repo stuck in `indexing` for **30 minutes** is treated as dead, and the
     **Re-index** button works again;
@@ -172,7 +184,10 @@ Both Render and Vercel redeploy automatically on push to `main` once connected.
 | `DEBUG` | `false` | never `true` in prod (exposes `/api/docs`) |
 | `JWT_SECRET_KEY` | Render generated | JWT signing + GitHub token encryption key |
 | `DATABASE_URL` | Neon (manual) | `postgresql://` auto-normalized to asyncpg |
-| `REDIS_URL` | Render Key Value | cache |
+| `REDIS_URL` | Upstash (manual) | cache, job queue, live events — `rediss://…` |
+| `WORKER_MODE` | `embedded` | API runs the job worker; `external` with a separate worker service |
+| `WORKER_POLL_DELAY_SECONDS` | `15` | queue check interval; keeps Upstash free tier usage low |
+| `WORKER_MAX_JOBS` | `1` | concurrent jobs on the 512 MB instance |
 | `ALLOWED_ORIGINS` | manual | frontend origin(s), comma-separated |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | manual | production OAuth app |
 | `GITHUB_CALLBACK_URL` | manual | `https://<frontend>/callback` |

@@ -132,10 +132,11 @@ async def test_index_endpoints_start_job_once_and_enforce_ownership(client, db_s
     monkeypatch.setattr(limiter, "enabled", False)
     started = []
 
-    async def fake_job(repo_id, user_id):
+    async def fake_enqueue(repo_id, user_id):
         started.append(repo_id)
+        return True
 
-    monkeypatch.setattr(repositories_router, "_run_indexing_background", fake_job)
+    monkeypatch.setattr(repositories_router, "enqueue_indexing", fake_enqueue)
     user, repo = await _make_repo(db_session, "carol")
     other, _ = await _make_repo(db_session, "dave")
     auth = {"Authorization": f"Bearer {create_access_token(str(user.id))}"}

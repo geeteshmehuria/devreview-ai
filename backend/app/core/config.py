@@ -69,6 +69,17 @@ class Settings(BaseSettings):
     # ── Redis ──────────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://:redis_secret@localhost:6379/0"
 
+    # ── Background jobs (ARQ, see app/jobs) ────────────────────────────────────
+    # "embedded": the API process also runs the job worker (one free web service).
+    # "external": run `arq app.jobs.worker.WorkerSettings` as its own process/service.
+    WORKER_MODE: Literal["embedded", "external"] = "embedded"
+    WORKER_MAX_JOBS: int = 2                # jobs run at once — indexing is memory-heavy on 512 MB
+    # How often the worker checks Redis for new jobs. Each check is one Redis command, so on a
+    # metered Redis (Upstash free: 500K commands/month) use ~15s; 0.5s is fine for local Redis.
+    WORKER_POLL_DELAY_SECONDS: float = 0.5
+    JOB_TIMEOUT_SECONDS: int = 1800         # a job running longer is stopped and marked failed
+    JOB_MAX_TRIES: int = 3                  # runs cut off by a restart are retried up to this
+
     # Cache TTL (seconds)
     CACHE_TTL_REPO_ANALYSIS: int = 3600
     CACHE_TTL_PR_REVIEW: int = 1800
