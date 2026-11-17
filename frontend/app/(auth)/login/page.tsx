@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Github, Code2, Shield, Zap } from "lucide-react";
 import { authApi } from "@/lib/api/auth";
 import { toast } from "sonner";
-import { RadarLoader } from "@/components/shared/radar-loader";
+import { BracketsLoader } from "@/components/shared/brackets-loader";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -65,7 +65,7 @@ export default function LoginPage() {
             className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
           >
             {isLoading ? (
-              <RadarLoader size={20} />
+              <BracketsLoader size={20} />
             ) : (
               <Github className="w-5 h-5" />
             )}

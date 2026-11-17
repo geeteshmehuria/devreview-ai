@@ -145,60 +145,43 @@ pre, code {
   }
 }
 
-/* ── Radar loader (components/shared/radar-loader.tsx). Sized in em: font-size = diameter.
+/* ── Brackets loader (components/shared/brackets-loader.tsx). Sized in em: font-size = height.
+      Draws in currentColor so it stays readable on any button; page loaders pass text-brand-400.
       In a layer so Tailwind utilities passed via className still win. ── */
 @layer components {
-  .radar-loader {
-    position: relative;
+  .brackets-loader {
     display: inline-block;
     flex: none;
-    width: 1em;
+    width: 1.2em;
     height: 1em;
-    border-radius: 50%;
-    border: max(1px, 0.03em) solid rgba(163, 171, 245, 0.35);
   }
-  .radar-loader::before {
-    content: "";
-    position: absolute;
-    inset: 0.24em;
-    border-radius: 50%;
-    border: max(1px, 0.03em) solid rgba(163, 171, 245, 0.18);
+  .brackets-loader svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
   }
-  .radar-loader::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: conic-gradient(from 0deg, transparent 70%, rgba(163, 171, 245, 0.55) 100%);
-    animation: radar-spin 2s linear infinite;
+  .brackets-loader path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 4.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
-  .radar-loader i {
-    position: absolute;
-    width: max(2px, 0.09em);
-    height: max(2px, 0.09em);
-    border-radius: 50%;
-    background: var(--color-brand-300);
-    box-shadow: 0 0 0.15em var(--color-brand-400);
-    opacity: 0;
-    animation: radar-blip 2s linear infinite;
-  }
-  /* Delays match when the sweep reaches each blip's angle */
-  .radar-loader i:nth-child(1) { left: 66%; top: 24%; animation-delay: 0.25s; }
-  .radar-loader i:nth-child(2) { left: 26%; top: 62%; animation-delay: 1.25s; }
-  .radar-loader i:nth-child(3) {
-    left: 60%; top: 72%; animation-delay: 0.8s;
-    background: var(--color-danger);
-    box-shadow: 0 0 0.15em var(--color-danger);
+  .brackets-loader .l { animation: brackets-l 1.4s ease-in-out infinite; }
+  .brackets-loader .r { animation: brackets-r 1.4s ease-in-out infinite; }
+  .brackets-loader .s {
+    opacity: 0.7;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: brackets-s 1.4s cubic-bezier(0.6, 0, 0.3, 1) infinite;
   }
 }
 
-@keyframes radar-spin { to { transform: rotate(360deg); } }
-@keyframes radar-blip {
-  0% { opacity: 0; transform: scale(0.4); }
-  4% { opacity: 1; transform: scale(1.3); }
-  55%, 100% { opacity: 0; transform: scale(1); }
-}
+@keyframes brackets-l { 50% { transform: translateX(-3px); } }
+@keyframes brackets-r { 50% { transform: translateX(3px); } }
+@keyframes brackets-s { 0%, 25% { transform: rotate(0); } 75%, 100% { transform: rotate(180deg); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .radar-loader::after, .radar-loader i { animation-duration: 4s; }
+  .brackets-loader .l, .brackets-loader .r, .brackets-loader .s { animation-duration: 3s; }
 }

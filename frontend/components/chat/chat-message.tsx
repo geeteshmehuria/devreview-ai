@@ -3,7 +3,7 @@ import remarkGfm from "remark-gfm";
 import { AlertTriangle, Bot, SearchX, User } from "lucide-react";
 import { CitationChip } from "@/components/chat/citation-chip";
 import type { ChatCitation } from "@/types";
-import { RadarLoader } from "@/components/shared/radar-loader";
+import { BracketsLoader } from "@/components/shared/brackets-loader";
 
 /** Must match NOT_FOUND in backend/app/rag/prompt.py. */
 export const NOT_FOUND_PREFIX = "I couldn't find this in the repository";
@@ -78,7 +78,7 @@ export function ChatMessageView({
         ) : (
           streaming && (
             <p className="flex items-center gap-2 text-sm text-slate-400">
-              <RadarLoader /> Searching the code…
+              <BracketsLoader /> Searching the code…
             </p>
           )
         )}

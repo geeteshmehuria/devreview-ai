@@ -11,7 +11,7 @@ import { repositoriesApi } from "@/lib/api/repositories";
 import { IndexStatusPanel, useIndexStatus } from "@/components/chat/index-status-panel";
 import { RepoChat } from "@/components/chat/repo-chat";
 import { cn, formatRelativeTime, getScoreColor } from "@/lib/utils";
-import { RadarLoader } from "@/components/shared/radar-loader";
+import { BracketsLoader } from "@/components/shared/brackets-loader";
 
 type Tab = "chat" | "overview";
 
@@ -29,7 +29,7 @@ export default function RepositoryDetailPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <RadarLoader size={32} />
+        <BracketsLoader size={32} className="text-brand-400" />
       </div>
     );
   }

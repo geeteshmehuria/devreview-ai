@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { reviewsApi } from "@/lib/api/reviews";
 import { ReviewResultPanel } from "@/components/review/review-result-panel";
-import { RadarLoader } from "@/components/shared/radar-loader";
+import { BracketsLoader } from "@/components/shared/brackets-loader";
 
 export default function ReviewDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -20,7 +20,7 @@ export default function ReviewDetailPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <RadarLoader size={32} />
+        <BracketsLoader size={32} className="text-brand-400" />
       </div>
     );
   }
