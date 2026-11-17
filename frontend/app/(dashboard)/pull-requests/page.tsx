@@ -12,7 +12,7 @@ import { ScoreRing } from "@/components/shared/score-ring";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getScoreColor, categoryLabel } from "@/lib/utils";
-import { RadarLoader } from "@/components/shared/radar-loader";
+import { BracketsLoader } from "@/components/shared/brackets-loader";
 
 export default function PullRequestsPage() {
   const [prUrl, setPrUrl] = useState("");
@@ -64,7 +64,7 @@ export default function PullRequestsPage() {
                 className="flex items-center justify-center gap-2 px-6 h-12 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {mutation.isPending ? (
-                  <><RadarLoader /> Analysing…</>
+                  <><BracketsLoader /> Analysing…</>
                 ) : (
                   <><GitPullRequest className="w-4 h-4" /> Review PR</>
                 )}

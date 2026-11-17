@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { repositoriesApi } from "@/lib/api/repositories";
 import { formatRelativeTime } from "@/lib/utils";
 import type { IndexState, IndexStatus } from "@/types";
-import { RadarLoader } from "@/components/shared/radar-loader";
+import { BracketsLoader } from "@/components/shared/brackets-loader";
 
 const BADGE: Record<IndexState, { label: string; className: string }> = {
   not_indexed: { label: "Not indexed", className: "bg-slate-500/10 text-slate-400 border-slate-500/30" },
@@ -75,7 +75,7 @@ export function IndexStatusPanel({ repoId }: { repoId: string }) {
           className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 h-10 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {indexing || indexMutation.isPending ? (
-            <RadarLoader />
+            <BracketsLoader />
           ) : (
             <RefreshCw className="w-4 h-4" />
           )}

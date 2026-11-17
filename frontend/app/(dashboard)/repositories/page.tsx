@@ -10,7 +10,7 @@ import { repositoriesApi } from "@/lib/api/repositories";
 import { formatRelativeTime, getScoreColor } from "@/lib/utils";
 import { SkeletonCard } from "@/components/shared/skeleton";
 import type { GitHubRepo, Repository } from "@/types";
-import { RadarLoader } from "@/components/shared/radar-loader";
+import { BracketsLoader } from "@/components/shared/brackets-loader";
 
 const IN_PROGRESS: Repository["status"][] = ["pending", "analyzing"];
 
@@ -116,7 +116,7 @@ export default function RepositoriesPage() {
               disabled={addMutation.isPending || !repoUrl}
               className="flex items-center justify-center gap-2 px-5 h-11 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              {addMutation.isPending ? <RadarLoader /> : <Plus className="w-4 h-4" />}
+              {addMutation.isPending ? <BracketsLoader /> : <Plus className="w-4 h-4" />}
               Import
             </button>
           </div>
@@ -237,7 +237,7 @@ function GitHubRepoPicker({ imported, onPick, pendingUrl }: {
                   <Star className="w-3 h-3" />{repo.stars}
                 </span>
                 {isPending ? (
-                  <RadarLoader />
+                  <BracketsLoader className="text-brand-400" />
                 ) : isImported ? (
                   <span className="flex items-center gap-1 text-xs text-emerald-400 shrink-0">
                     <Check className="w-3 h-3" />Imported

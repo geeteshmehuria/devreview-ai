@@ -15,7 +15,7 @@ import { Code2 } from "lucide-react";
 import { authApi } from "@/lib/api/auth";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { toast } from "sonner";
-import { RadarLoader } from "@/components/shared/radar-loader";
+import { BracketsLoader } from "@/components/shared/brackets-loader";
 
 function CallbackInner() {
   const router = useRouter();
@@ -76,7 +76,7 @@ function CallbackInner() {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-600 mb-6 shadow-lg shadow-brand-600/30">
           <Code2 className="w-8 h-8 text-white" />
         </div>
-        <RadarLoader size={40} className="block mx-auto mb-4" />
+        <BracketsLoader size={40} className="block mx-auto mb-4 text-brand-400" />
         <h2 className="text-white font-semibold text-lg">Signing you in…</h2>
         <p className="text-slate-400 text-sm mt-1">Exchanging GitHub credentials</p>
       </motion.div>
