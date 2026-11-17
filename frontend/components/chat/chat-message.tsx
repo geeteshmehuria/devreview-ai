@@ -1,8 +1,9 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AlertTriangle, Bot, Loader2, SearchX, User } from "lucide-react";
+import { AlertTriangle, Bot, SearchX, User } from "lucide-react";
 import { CitationChip } from "@/components/chat/citation-chip";
 import type { ChatCitation } from "@/types";
+import { RadarLoader } from "@/components/shared/radar-loader";
 
 /** Must match NOT_FOUND in backend/app/rag/prompt.py. */
 export const NOT_FOUND_PREFIX = "I couldn't find this in the repository";
@@ -77,7 +78,7 @@ export function ChatMessageView({
         ) : (
           streaming && (
             <p className="flex items-center gap-2 text-sm text-slate-400">
-              <Loader2 className="w-4 h-4 animate-spin" /> Searching the code…
+              <RadarLoader /> Searching the code…
             </p>
           )
         )}

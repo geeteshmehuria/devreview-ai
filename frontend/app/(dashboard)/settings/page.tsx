@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import { useMutation } from "@tanstack/react-query";
-import { Github, Loader2, Shield } from "lucide-react";
+import { Github, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { RadarLoader } from "@/components/shared/radar-loader";
 
 export default function SettingsPage() {
   const { user, clearTokens } = useAuthStore();
@@ -76,7 +77,7 @@ export default function SettingsPage() {
           disabled={deleteMutation.isPending}
           className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 h-11 sm:h-10 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm transition-colors disabled:opacity-50"
         >
-          {deleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+          {deleteMutation.isPending && <RadarLoader />}
           Delete Account
         </button>
       </div>

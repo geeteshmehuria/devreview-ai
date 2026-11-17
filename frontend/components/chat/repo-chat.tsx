@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Database, Loader2, MessageSquare, Plus, Send, Trash2 } from "lucide-react";
+import { Database, MessageSquare, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { chatApi, streamChatMessage } from "@/lib/api/chat";
 import { ChatMessageView } from "@/components/chat/chat-message";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import type { ChatCitation } from "@/types";
+import { RadarLoader } from "@/components/shared/radar-loader";
 
 const EXAMPLE_QUESTIONS = [
   "How is authentication handled?",
@@ -180,7 +181,7 @@ export function RepoChat({ repoId, indexed }: { repoId: string; indexed: boolean
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5">
           {messagesLoading && activeId ? (
             <div className="flex justify-center py-10">
-              <Loader2 className="w-6 h-6 text-brand-400 animate-spin" />
+              <RadarLoader size={24} />
             </div>
           ) : empty ? (
             <div className="h-full flex flex-col items-center justify-center text-center gap-4">
@@ -253,7 +254,7 @@ export function RepoChat({ repoId, indexed }: { repoId: string; indexed: boolean
             className="flex items-center justify-center w-12 h-12 shrink-0 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             aria-label="Send"
           >
-            {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {streaming ? <RadarLoader /> : <Send className="w-4 h-4" />}
           </button>
         </form>
       </section>

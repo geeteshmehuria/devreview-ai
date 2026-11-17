@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation } from "@tanstack/react-query";
-import { GitPullRequest, Loader2, ExternalLink } from "lucide-react";
+import { GitPullRequest, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { reviewsApi } from "@/lib/api/reviews";
 import type { PRReviewResult } from "@/types";
@@ -12,6 +12,7 @@ import { ScoreRing } from "@/components/shared/score-ring";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getScoreColor, categoryLabel } from "@/lib/utils";
+import { RadarLoader } from "@/components/shared/radar-loader";
 
 export default function PullRequestsPage() {
   const [prUrl, setPrUrl] = useState("");
@@ -63,7 +64,7 @@ export default function PullRequestsPage() {
                 className="flex items-center justify-center gap-2 px-6 h-12 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {mutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Analysing…</>
+                  <><RadarLoader /> Analysing…</>
                 ) : (
                   <><GitPullRequest className="w-4 h-4" /> Review PR</>
                 )}
