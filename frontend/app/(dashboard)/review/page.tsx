@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Code2, Upload, Play, Loader2, ChevronDown } from "lucide-react";
+import { Code2, Upload, Play, ChevronDown } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { reviewsApi } from "@/lib/api/reviews";
 import type { Review } from "@/types";
 import { ReviewResultPanel } from "@/components/review/review-result-panel";
 import { useIsMobile } from "@/lib/hooks/use-media-query";
+import { RadarLoader } from "@/components/shared/radar-loader";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
@@ -132,7 +133,7 @@ export default function ReviewPage() {
             className="w-full sm:w-auto sm:ml-auto flex items-center justify-center gap-2 px-5 h-11 sm:h-10 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
           >
             {mutation.isPending ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Analysing…</>
+              <><RadarLoader /> Analysing…</>
             ) : (
               <><Play className="w-4 h-4" /> Run Review</>
             )}

@@ -7,6 +7,7 @@
 
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { RadarLoader } from "@/components/shared/radar-loader";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { initialize, isInitialized } = useAuthStore();
@@ -21,7 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-surface-0 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          <RadarLoader size={48} />
           <p className="text-sm text-slate-400">Loading DevReview AI…</p>
         </div>
       </div>

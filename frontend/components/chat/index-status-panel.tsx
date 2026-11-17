@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Database, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, Database, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { repositoriesApi } from "@/lib/api/repositories";
 import { formatRelativeTime } from "@/lib/utils";
 import type { IndexState, IndexStatus } from "@/types";
+import { RadarLoader } from "@/components/shared/radar-loader";
 
 const BADGE: Record<IndexState, { label: string; className: string }> = {
   not_indexed: { label: "Not indexed", className: "bg-slate-500/10 text-slate-400 border-slate-500/30" },
@@ -74,7 +75,7 @@ export function IndexStatusPanel({ repoId }: { repoId: string }) {
           className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 h-10 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {indexing || indexMutation.isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <RadarLoader />
           ) : (
             <RefreshCw className="w-4 h-4" />
           )}

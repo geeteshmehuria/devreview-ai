@@ -6,11 +6,12 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeft, ExternalLink, GitFork, Globe, Loader2, Lock, MessageSquare, Star, FileText } from "lucide-react";
+import { ArrowLeft, ExternalLink, GitFork, Globe, Lock, MessageSquare, Star, FileText } from "lucide-react";
 import { repositoriesApi } from "@/lib/api/repositories";
 import { IndexStatusPanel, useIndexStatus } from "@/components/chat/index-status-panel";
 import { RepoChat } from "@/components/chat/repo-chat";
 import { cn, formatRelativeTime, getScoreColor } from "@/lib/utils";
+import { RadarLoader } from "@/components/shared/radar-loader";
 
 type Tab = "chat" | "overview";
 
@@ -28,7 +29,7 @@ export default function RepositoryDetailPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-brand-400 animate-spin" />
+        <RadarLoader size={32} />
       </div>
     );
   }
